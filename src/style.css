@@ -1,0 +1,190 @@
+/* 盤後小幫手 —— MVP 樣式（卡通風雛形，完整視覺在 M6） */
+
+:root {
+  --bg: #FFF8EF;
+  --card: #FFFFFF;
+  --brand: #5B8DEF;
+  --up: #2E948E;
+  --down: #E08A3C;
+  --flat: #9AA0A6;
+  --text: #2E2A26;
+  --text-2: #7A736B;
+  --radius: 20px;
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1E1B18;
+    --card: #2A2622;
+    --brand: #7FA9F5;
+    --up: #4FC9C2;
+    --down: #F6B074;
+    --flat: #9AA0A6;
+    --text: #F2EDE6;
+    --text-2: #B7AEA3;
+    --shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, "Noto Sans TC", "Microsoft JhengHei", "PingFang TC", sans-serif;
+  line-height: 1.6;
+}
+
+#app {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 12px 12px 4px;
+}
+
+.page { display: flex; flex-direction: column; gap: 12px; }
+
+/* 頂列 */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px;
+}
+.topbar h1 { font-size: 1.2rem; margin: 0; flex: 1; }
+.topbar .logo { font-size: 1.6rem; }
+.topbar .back, .topbar .gear {
+  text-decoration: none;
+  font-size: 1.3rem;
+  color: var(--text);
+  min-width: 40px;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 卡片 */
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+}
+.card h2 { margin: 0 0 8px; font-size: 1.05rem; }
+.card.center { text-align: center; padding: 32px 16px; }
+.emoji { font-size: 2.4rem; margin: 0 0 8px; }
+.hint { color: var(--text-2); margin: 0 0 10px; }
+.empty { color: var(--text-2); margin: 6px 0 0; }
+
+/* 搜尋 */
+.search {
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 1rem;
+  border: 2px solid transparent;
+  border-radius: 14px;
+  background: var(--bg);
+  color: var(--text);
+}
+.search:focus { outline: none; border-color: var(--brand); }
+.results { list-style: none; margin: 8px 0 0; padding: 0; }
+.results li a {
+  display: block;
+  padding: 12px 10px;
+  text-decoration: none;
+  color: var(--text);
+  border-radius: 12px;
+}
+.results li a:hover, .results li a:focus { background: var(--bg); }
+
+/* 按鈕 */
+.btn {
+  display: inline-block;
+  padding: 12px 18px;
+  border-radius: 14px;
+  background: var(--brand);
+  color: #fff;
+  border: none;
+  font-size: 1rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+.btn.ghost {
+  background: transparent;
+  color: var(--brand);
+  border: 2px solid var(--brand);
+}
+.btn:active { transform: translateY(2px); }
+
+/* 報價 */
+.quote { display: flex; align-items: baseline; gap: 12px; }
+.price { font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.chg { font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+.datadate { color: var(--text-2); font-size: 0.9rem; margin: 6px 0 0; }
+
+/* 均線卡片 */
+.ma-head { display: flex; align-items: center; gap: 10px; }
+.ma-head h2 { margin: 0; }
+.ma-sub { color: var(--text-2); font-size: 0.92rem; margin: 8px 0; }
+.pill {
+  padding: 2px 12px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.pill.up, .pill.down, .pill.flat { color: #fff; }
+.pill.up { background: var(--up); }
+.pill.down { background: var(--down); }
+.pill.flat { background: var(--flat); }
+
+/* 扣抵值表 */
+table.ded { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+table.ded th, table.ded td { padding: 7px 6px; text-align: left; }
+table.ded thead th {
+  color: var(--text-2);
+  font-weight: 600;
+  border-bottom: 2px solid var(--bg);
+  font-size: 0.8rem;
+}
+table.ded tbody tr + tr td { border-top: 1px solid var(--bg); }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.up { color: var(--up); }
+.down { color: var(--down); }
+.flat { color: var(--flat); }
+
+/* 觀察清單 */
+.watch-row {
+  display: grid;
+  grid-template-columns: 1.4fr 0.8fr 1.4fr;
+  gap: 8px;
+  padding: 12px 6px;
+  text-decoration: none;
+  color: var(--text);
+  font-size: 0.9rem;
+  align-items: center;
+}
+.watch-row + .watch-row { border-top: 1px solid var(--bg); }
+
+/* 頁尾免責 */
+.disclaimer {
+  max-width: 720px;
+  margin: 8px auto 24px;
+  padding: 0 16px;
+  color: var(--text-2);
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+/* 離線橫幅 */
+.offline-banner {
+  background: var(--down);
+  color: #fff;
+  text-align: center;
+  padding: 6px;
+  font-size: 0.85rem;
+}
+
+.loading { text-align: center; color: var(--text-2); padding: 40px; }

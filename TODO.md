@@ -1,7 +1,7 @@
 # TODO — 盤後小幫手
 
 > 勾選規則：一個 `[ ]` 大約是 30–60 分鐘能收尾的事。做完打 `[x]`。
-> 目前進度：**M0 完成（程式面）— 待使用者做 Excel 手動對照**
+> 目前進度：**M1（MVP）功能完成 — 待部署 GitHub Pages + 手機實測**
 
 ---
 
@@ -18,38 +18,40 @@
 
 ---
 
-## ⚪ 接著做（M1：網頁 MVP）
+## 🟡 M1：網頁 MVP（大部分完成）
 
 ### 骨架
-- [ ] `index.html`（單頁）、`src/app.js`、`src/style.css`
-- [ ] `manifest.json`（名稱、icon 佔位、`display: standalone`）
-- [ ] hash 路由：`#/` 與 `#/stock/:code`
-- [ ] `git init`、第一次 commit、建 GitHub repo、開 GitHub Pages（見 GUIDE.md）
+- [x] `index.html`、`src/app.js`、`src/style.css`
+- [x] `manifest.json`（名稱、SVG emoji icon、`display: standalone`）
+- [x] hash 路由：`#/`、`#/stock/:code`、`#/settings`
+- [x] `git init`、第一次 commit、建 GitHub repo（pweichi-art/post-market，公開）
+- [ ] 開 GitHub Pages + 手機實測「加到主畫面」
 
 ### 資料層
-- [ ] `src/api.js`：`getStockList()` / `getDailyK(code, fromDate)`（FinMind）
-- [ ] `src/cache.js`：用 `idb-keyval` 存取 IndexedDB
-- [ ] 「先讀快取、缺的再補抓」邏輯
-- [ ] API 逾時（8 秒）與失敗處理，回傳結構化錯誤
+- [x] `src/api.js`：`fetchStockList()` / `fetchDailyPrice()`（FinMind），9 秒逾時 + `ApiError`
+- [x] `src/cache.js`：`idb-keyval` 存取 IndexedDB
+- [x] 「先讀快取、缺的增量補抓」邏輯 + 抓失敗用舊快取撐住（stale 標記）
 
 ### 算法層
-- [ ] `src/deduction.js`：從 `prototype/deduction.py` 逐行翻譯
-- [ ] `test/deduction.test.js`：用 M0 的測資斷言（可用瀏覽器內簡單 assert，或 Vitest）
+- [x] `src/deduction.js`：從 `prototype/deduction.py` 翻譯
+- [x] `test/deduction.test.js`：4 個測試全過（合成資料 + 2330 真實 fixture）
 
 ### 畫面層
-- [ ] 首頁：搜尋框 + 結果下拉（代號/名稱模糊比對）
-- [ ] 個股頁：標題列（代號/名稱/收盤/漲跌/資料日期）
-- [ ] 扣抵值分析表元件：一張卡片 = 一條均線，含未來 10 日
-- [ ] 上彎/下彎用形狀 + 色（見 UIUX）
-- [ ] 頁尾免責聲明（每頁）
-- [ ] 載入中 / 查無此股 / API 失敗 / 離線 四種狀態畫面
+- [x] 首頁：搜尋框 + 結果下拉（代號/名稱模糊比對）+ 觀察清單
+- [x] 個股頁：標題列（代號/名稱/收盤/漲跌/資料日期）
+- [x] 扣抵值分析表：一張卡片 = 一條均線，未來 10 日
+- [x] 上彎/下彎用箭頭 + 色 pill（修過一次 CSS 優先權 bug）
+- [x] 頁尾免責聲明（固定）
+- [x] 載入中 / 查無此股 / API 失敗 / 離線 狀態畫面
+- [x] 觀察清單加入/移除（存 IndexedDB）※ 原列在 M4，先做了基本版
 
-### 驗收
-- [ ] 手機 Chrome 打開 GitHub Pages 網址、加到主畫面、全螢幕開啟
-- [ ] `2330`、`台積電` 都能進台積電頁
-- [ ] 表格數字 = M0 Python 輸出
-- [ ] 關網路重開 → 顯示快取 + 離線標籤
-- [ ] API 網址打錯 → 友善錯誤，不白屏
+### 驗收（瀏覽器實測已過，手機待測）
+- [x] `2330`、`台積電` 都能進台積電頁
+- [x] 表格數字 = M0 Python 輸出（MA5=2412 / MA20=2396 / D+1扣抵=2365…）
+- [x] 查無此股 → 「🤷 查無資料」不白屏
+- [x] Console 無錯誤
+- [ ] 手機 Chrome 打開 Pages 網址、加到主畫面、全螢幕開啟
+- [ ] 關網路重開 → 顯示快取 + 離線標籤（需 Service Worker，排在 M6；目前僅 IndexedDB 快取）
 
 ---
 

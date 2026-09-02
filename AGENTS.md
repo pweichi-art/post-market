@@ -8,11 +8,20 @@
 
 台股**盤後**個股分析 PWA，核心是「扣抵值 / 均線上彎」分析。單一使用者、純前端、無後端、部署在 GitHub Pages。
 
-## 目前狀態
+## 目前狀態（2026-09-03）
 
-- 階段：**M0（Python 邏輯驗證）尚未開始**
-- 需求已凍結，見 `SPEC.md`
-- 尚無程式碼
+- **M0 完成**：`prototype/` Python 原型，扣抵值算法已驗證（見 `prototype/verify.md`）
+- **M1（MVP）功能完成**：搜尋 → 扣抵值表 + 觀察清單 + IndexedDB 快取，瀏覽器實測通過
+- GitHub：`pweichi-art/post-market`（公開），已 push
+- 待辦：開 GitHub Pages、手機實測；下一階段 M2 = K 線圖
+- 需求凍結見 `SPEC.md`
+
+### 與 SPEC 檔案結構的差異（MVP 取捨）
+- `src/views/` 尚未拆分，首頁/個股/設定的渲染函式全放在 `src/app.js`。
+  M2 之後 app.js 變大時再拆。
+- Service Worker（離線）延到 M6，目前離線僅靠 IndexedDB 快取（重開分頁可讀舊資料，
+  但完全離線首載會失敗）。
+- 觀察清單（原 M4）已先做基本版，因為它幫助日常試用。
 
 ---
 

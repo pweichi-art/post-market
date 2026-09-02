@@ -1,0 +1,5 @@
+# 統一用 LF 換行，避免 Windows 下 Git 一直跳 CRLF 警告
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary

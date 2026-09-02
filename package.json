@@ -1,0 +1,11 @@
+{
+  "name": "post-market",
+  "version": "0.1.0",
+  "description": "台股盤後扣抵值 / 均線上彎分析 PWA",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test test/deduction.test.js",
+    "serve": "python -m http.server 8777 --bind 127.0.0.1"
+  }
+}
