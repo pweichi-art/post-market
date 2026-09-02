@@ -1,0 +1,17 @@
+# M0 原型抓下來的資料（可重新產生，不需版控）
+prototype/data/
+prototype/reports_*.txt
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 編輯器 / 系統
+.vscode/
+.DS_Store
+Thumbs.db
+
+# 之後 M1 若有用到 node
+node_modules/
