@@ -74,6 +74,9 @@ function header(title, back = false) {
 
 const trendLabel = { up: '↗ 上彎', down: '↘ 下彎', flat: '→ 走平' };
 
+// 顯示用：最多 2 位小數，去掉多餘的 0（252.40 → 252.4）
+const fmt = (x) => String(Number(x.toFixed(2)));
+
 // ---------- 首頁 ----------
 
 async function homeView() {
@@ -243,8 +246,8 @@ function maCard(r, lastClose) {
         <span class="pill ${r.trend}">${trendLabel[r.trend]}</span>
       </div>
       <p class="ma-sub">
-        目前均價 <b>${r.maToday}</b>（昨日 ${r.maYesterday}）<br/>
-        若股價維持 ${lastClose}，均線可連續上彎 <b>${r.holdUpDays}</b> 個交易日
+        目前均價 <b>${fmt(r.maToday)}</b>（昨日 ${fmt(r.maYesterday)}）<br/>
+        若股價維持 ${fmt(lastClose)}，均線可連續上彎 <b>${r.holdUpDays}</b> 個交易日
       </p>
       <table class="ded">
         <thead><tr><th>未來</th><th>日期</th><th>扣抵值<br/>(需站上)</th><th>與現價差</th><th></th></tr></thead>

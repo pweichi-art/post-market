@@ -25,7 +25,8 @@
 - [x] `manifest.json`（名稱、SVG emoji icon、`display: standalone`）
 - [x] hash 路由：`#/`、`#/stock/:code`、`#/settings`
 - [x] `git init`、第一次 commit、建 GitHub repo（pweichi-art/post-market，公開）
-- [ ] 開 GitHub Pages + 手機實測「加到主畫面」
+- [x] 開 GitHub Pages → https://pweichi-art.github.io/post-market/（已上線實測 2317 OK）
+- [ ] 手機實測「加到主畫面」← 換你做
 
 ### 資料層
 - [x] `src/api.js`：`fetchStockList()` / `fetchDailyPrice()`（FinMind），9 秒逾時 + `ApiError`
