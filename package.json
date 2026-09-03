@@ -5,7 +5,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "test": "node --test test/deduction.test.js",
+    "test": "node --test",
     "serve": "python -m http.server 8777 --bind 127.0.0.1"
   }
 }

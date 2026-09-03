@@ -8,7 +8,7 @@ const LWC_URL =
   'https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js';
 
 let libPromise = null;
-let active = null; // { chart, ro }
+const actives = []; // [{ chart, ro }]
 
 function loadLib() {
   if (window.LightweightCharts) return Promise.resolve(window.LightweightCharts);
@@ -38,6 +38,25 @@ function palette() {
 
 const MA_COLORS = { 5: '#5B8DEF', 10: '#B57EDC', 20: '#E0A93C', 60: '#8A8F98' };
 
+// 建一張圖 + 綁 ResizeObserver + 登記到 actives，回傳 { LWC, chart, palette }
+function makeChart(container, extraOpts = {}) {
+  const c = palette();
+  const chart = window.LightweightCharts.createChart(container, {
+    width: container.clientWidth,
+    height: container.clientHeight || 220,
+    layout: { background: { color: c.bg }, textColor: c.text, fontFamily: 'inherit' },
+    grid: { vertLines: { color: c.grid }, horzLines: { color: c.grid } },
+    rightPriceScale: { borderColor: c.border },
+    timeScale: { borderColor: c.border, rightOffset: 2, fixLeftEdge: true },
+    localization: { locale: 'zh-TW' },
+    ...extraOpts,
+  });
+  const ro = new ResizeObserver(() => chart.applyOptions({ width: container.clientWidth }));
+  ro.observe(container);
+  actives.push({ chart, ro });
+  return { LWC: window.LightweightCharts, chart, c };
+}
+
 function movingAverage(rows, period) {
   const out = [];
   let sum = 0;
@@ -49,12 +68,13 @@ function movingAverage(rows, period) {
   return out;
 }
 
-/** 銷毀目前的圖表（換股 / 離開頁面時呼叫）。 */
+/** 銷毀頁面上所有圖表（換股 / 離開頁面時呼叫）。 */
 export function destroyChart() {
-  if (!active) return;
-  try { active.ro?.disconnect(); } catch {}
-  try { active.chart?.remove(); } catch {}
-  active = null;
+  while (actives.length) {
+    const a = actives.pop();
+    try { a.ro?.disconnect(); } catch {}
+    try { a.chart?.remove(); } catch {}
+  }
 }
 
 /**
@@ -64,20 +84,11 @@ export function destroyChart() {
  * @param {number[]} periods 要疊哪幾條均線
  */
 export async function renderChart(container, rows, periods = [5, 10, 20, 60]) {
-  const LWC = await loadLib();
-  destroyChart();
+  await loadLib();
   container.innerHTML = '';
-
-  const c = palette();
-  const chart = LWC.createChart(container, {
-    width: container.clientWidth,
+  const { chart, c } = makeChart(container, {
     height: container.clientHeight || 300,
-    layout: { background: { color: c.bg }, textColor: c.text, fontFamily: 'inherit' },
-    grid: { vertLines: { color: c.grid }, horzLines: { color: c.grid } },
-    rightPriceScale: { borderColor: c.border },
-    timeScale: { borderColor: c.border, rightOffset: 3, fixLeftEdge: true },
-    crosshair: { mode: LWC.CrosshairMode.Normal },
-    localization: { locale: 'zh-TW' },
+    crosshair: { mode: LWC_CrosshairNormal() },
     handleScale: { axisPressedMouseMove: false },
   });
 
@@ -102,16 +113,55 @@ export async function renderChart(container, rows, periods = [5, 10, 20, 60]) {
     line.setData(movingAverage(rows, p));
   }
 
-  // 預設顯示最近 ~120 根
   const n = rows.length;
   chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - 120), to: n + 3 });
+  return chart;
+}
 
-  // 隨容器寬度縮放
-  const ro = new ResizeObserver(() => {
-    chart.applyOptions({ width: container.clientWidth });
+function LWC_CrosshairNormal() {
+  return window.LightweightCharts.CrosshairMode.Normal;
+}
+
+/**
+ * 三大法人每日買賣超「合計」直方圖（單位：張，正買超 / 負賣超）。
+ * @param {HTMLElement} container
+ * @param {Array} agg 來自 chips.aggregateInstitutional，[{date, total, ...}]
+ */
+export async function renderInstitutionalChart(container, agg) {
+  await loadLib();
+  container.innerHTML = '';
+  const { chart, c } = makeChart(container, { height: container.clientHeight || 200 });
+  const hist = chart.addHistogramSeries({ priceFormat: { type: 'volume' }, priceLineVisible: false });
+  hist.setData(agg.map((d) => ({
+    time: d.date,
+    value: d.total,
+    color: d.total >= 0 ? c.up : c.down,
+  })));
+  const base = chart.addLineSeries({ color: c.border, lineWidth: 1, lastValueVisible: false, priceLineVisible: false });
+  base.setData(agg.map((d) => ({ time: d.date, value: 0 })));
+  chart.timeScale().fitContent();
+  return chart;
+}
+
+/**
+ * 融資餘額 / 融券餘額折線（單位：張，各自左右軸）。
+ * @param {Array} m 來自 chips.summarizeMargin，[{date, marginBal, shortBal, ...}]
+ */
+export async function renderMarginChart(container, m) {
+  await loadLib();
+  container.innerHTML = '';
+  const { chart } = makeChart(container, {
+    height: container.clientHeight || 200,
+    leftPriceScale: { visible: true },
   });
-  ro.observe(container);
-
-  active = { chart, ro };
+  const margin = chart.addLineSeries({
+    color: '#5B8DEF', lineWidth: 2, priceScaleId: 'right', title: '融資',
+  });
+  margin.setData(m.map((d) => ({ time: d.date, value: d.marginBal })));
+  const short = chart.addLineSeries({
+    color: '#E0A93C', lineWidth: 2, priceScaleId: 'left', title: '融券',
+  });
+  short.setData(m.map((d) => ({ time: d.date, value: d.shortBal })));
+  chart.timeScale().fitContent();
   return chart;
 }

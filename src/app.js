@@ -1,8 +1,10 @@
 // 進入點 + hash 路由 + 畫面渲染
 import { getStockList, getPriceSeries, clearAllCache, taipeiToday,
-         getWatchlist, setWatchlist } from './cache.js';
+         getWatchlist, setWatchlist, getInstitutional, getMargin } from './cache.js';
 import { analyze } from './deduction.js';
-import { renderChart, destroyChart } from './chart.js';
+import { renderChart, renderInstitutionalChart, renderMarginChart,
+         destroyChart } from './chart.js';
+import { aggregateInstitutional, institutionalSum, summarizeMargin } from './chips.js';
 
 const app = document.getElementById('app');
 
@@ -234,6 +236,18 @@ async function stockView(code) {
     wrap.append(maCard(r, last.close));
   }
 
+  const instCard = el(`
+    <div class="card">
+      <h2>三大法人買賣超（張）</h2>
+      <div id="inst-body"><p class="empty">載入中…</p></div>
+    </div>`);
+  const marginCard = el(`
+    <div class="card">
+      <h2>融資融券餘額（張）</h2>
+      <div id="margin-body"><p class="empty">載入中…</p></div>
+    </div>`);
+  wrap.append(instCard, marginCard);
+
   setView(wrap);
 
   // 圖表在畫面掛上、有寬度後再畫；失敗不影響其他內容
@@ -242,6 +256,97 @@ async function stockView(code) {
     console.error(err);
     chartEl.innerHTML = `<p class="empty">圖表載入失敗（${err.message}），扣抵值分析不受影響</p>`;
   });
+
+  renderInstitutional(instCard.querySelector('#inst-body'), code);
+  renderMargin(marginCard.querySelector('#margin-body'), code);
+}
+
+// 千分位 + 正負號
+const kfmt = (n) => (n > 0 ? '+' : '') + Math.round(n).toLocaleString('en-US');
+const kcls = (n) => (n > 0 ? 'up' : n < 0 ? 'down' : 'flat');
+
+async function renderInstitutional(node, code) {
+  let data;
+  try {
+    data = await getInstitutional(code);
+  } catch (err) {
+    node.innerHTML = `<p class="empty">三大法人資料載入失敗（${err.message}）</p>`;
+    return;
+  }
+  const agg = aggregateInstitutional(data.rows);
+  if (!agg.length) {
+    node.innerHTML = '<p class="empty">查無三大法人資料</p>';
+    return;
+  }
+  const s5 = institutionalSum(agg, 5);
+  const s20 = institutionalSum(agg, 20);
+  const recent = agg.slice(-12).reverse();
+  node.innerHTML = `
+    ${data.stale ? '<p class="empty">⚠️ 今日資料尚未更新，顯示上次資料</p>' : ''}
+    <p class="ma-sub">
+      近 5 日合計　外資 <b class="${kcls(s5.foreign)}">${kfmt(s5.foreign)}</b> · 
+      投信 <b class="${kcls(s5.trust)}">${kfmt(s5.trust)}</b> · 
+      自營 <b class="${kcls(s5.dealer)}">${kfmt(s5.dealer)}</b><br/>
+      近 20 日合計　外資 <b class="${kcls(s20.foreign)}">${kfmt(s20.foreign)}</b> · 
+      投信 <b class="${kcls(s20.trust)}">${kfmt(s20.trust)}</b> · 
+      自營 <b class="${kcls(s20.dealer)}">${kfmt(s20.dealer)}</b>
+    </p>
+    <div class="chart chart-sm" id="inst-chart"><p class="empty">載入圖表…</p></div>
+    <table class="ded">
+      <thead><tr><th>日期</th><th class="num">外資</th><th class="num">投信</th><th class="num">自營</th><th class="num">合計</th></tr></thead>
+      <tbody>${recent.map((d) => `
+        <tr>
+          <td>${d.date.slice(5)}</td>
+          <td class="num ${kcls(d.foreign)}">${kfmt(d.foreign)}</td>
+          <td class="num ${kcls(d.trust)}">${kfmt(d.trust)}</td>
+          <td class="num ${kcls(d.dealer)}">${kfmt(d.dealer)}</td>
+          <td class="num ${kcls(d.total)}">${kfmt(d.total)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+  renderInstitutionalChart(node.querySelector('#inst-chart'), agg.slice(-40))
+    .catch(() => { node.querySelector('#inst-chart').innerHTML = '<p class="empty">圖表載入失敗</p>'; });
+}
+
+async function renderMargin(node, code) {
+  let data;
+  try {
+    data = await getMargin(code);
+  } catch (err) {
+    node.innerHTML = `<p class="empty">融資融券資料載入失敗（${err.message}）</p>`;
+    return;
+  }
+  const m = summarizeMargin(data.rows);
+  if (!m.length) {
+    node.innerHTML = '<p class="empty">查無融資融券資料</p>';
+    return;
+  }
+  const latest = m[m.length - 1];
+  const recent = m.slice(-12).reverse();
+  node.innerHTML = `
+    ${data.stale ? '<p class="empty">⚠️ 今日資料尚未更新，顯示上次資料</p>' : ''}
+    <p class="ma-sub">
+      ${latest.date}　融資餘額 <b>${latest.marginBal.toLocaleString('en-US')}</b>
+      （<span class="${kcls(latest.marginChg)}">${kfmt(latest.marginChg)}</span>） · 
+      融券餘額 <b>${latest.shortBal.toLocaleString('en-US')}</b>
+      （<span class="${kcls(latest.shortChg)}">${kfmt(latest.shortChg)}</span>）
+    </p>
+    <div class="chart chart-sm" id="margin-chart"><p class="empty">載入圖表…</p></div>
+    <p class="chart-legend"><span class="lg" style="--c:#5B8DEF">融資餘額</span><span class="lg" style="--c:#E0A93C">融券餘額</span></p>
+    <table class="ded">
+      <thead><tr><th>日期</th><th class="num">融資餘額</th><th class="num">融資增減</th><th class="num">融券餘額</th><th class="num">融券增減</th></tr></thead>
+      <tbody>${recent.map((d) => `
+        <tr>
+          <td>${d.date.slice(5)}</td>
+          <td class="num">${d.marginBal.toLocaleString('en-US')}</td>
+          <td class="num ${kcls(d.marginChg)}">${kfmt(d.marginChg)}</td>
+          <td class="num">${d.shortBal.toLocaleString('en-US')}</td>
+          <td class="num ${kcls(d.shortChg)}">${kfmt(d.shortChg)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+  renderMarginChart(node.querySelector('#margin-chart'), m.slice(-40))
+    .catch(() => { node.querySelector('#margin-chart').innerHTML = '<p class="empty">圖表載入失敗</p>'; });
 }
 
 function maCard(r, lastClose) {

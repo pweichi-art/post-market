@@ -3,7 +3,7 @@
 // 策略：先給畫面看快取，背景再補抓缺的交易日。
 
 import { get, set, del, keys } from 'https://cdn.jsdelivr.net/npm/idb-keyval@6.2.1/+esm';
-import { fetchStockList, fetchDailyPrice } from './api.js';
+import { fetchStockList, fetchDailyPrice, fetchInstitutional, fetchMargin } from './api.js';
 
 const STOCKLIST_KEY = 'stocklist';
 const PRICE_PREFIX = 'price:';
@@ -113,6 +113,50 @@ function mergeRows(oldRows, freshRaw) {
 
 function pack(rows, fromCache, stale) {
   return { rows, dataDate: rows[rows.length - 1].date, fromCache, stale };
+}
+
+// ---------- 籌碼面（三大法人 / 融資融券）----------
+// 這兩個資料量小、只看近月，用同一套「有今天就用快取、否則增量補抓」邏輯。
+
+const CHIP_DAYS = 90;
+
+async function getChipDataset(prefix, stockId, fetcher) {
+  const key = `${prefix}:${stockId}`;
+  const cached = await get(key);
+  const today = taipeiToday();
+  const rowDate = (r) => r.date;
+  const lastDate = cached?.rows?.length ? cached.rows[cached.rows.length - 1].date : null;
+
+  if (lastDate && lastDate >= today) return { rows: cached.rows, stale: false };
+
+  try {
+    let rows;
+    if (cached?.rows?.length) {
+      const fresh = await fetcher(stockId, lastDate);
+      const map = new Map(cached.rows.map((r) => [rowDate(r) + '|' + (r.name || ''), r]));
+      for (const r of fresh) map.set(rowDate(r) + '|' + (r.name || ''), r);
+      rows = [...map.values()].sort((a, b) => a.date.localeCompare(b.date));
+    } else {
+      rows = (await fetcher(stockId, daysAgoISO(CHIP_DAYS)))
+        .sort((a, b) => a.date.localeCompare(b.date));
+    }
+    if (!rows.length) {
+      if (cached?.rows?.length) return { rows: cached.rows, stale: true };
+      return { rows: [], stale: false };
+    }
+    await set(key, { updated: today, rows });
+    return { rows, stale: false };
+  } catch (err) {
+    if (cached?.rows?.length) return { rows: cached.rows, stale: true };
+    throw err;
+  }
+}
+
+export function getInstitutional(stockId) {
+  return getChipDataset('inst', stockId, fetchInstitutional);
+}
+export function getMargin(stockId) {
+  return getChipDataset('margin', stockId, fetchMargin);
 }
 
 // ---------- 設定 / 維護 ----------

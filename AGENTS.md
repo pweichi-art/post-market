@@ -13,10 +13,18 @@
 - **M0 完成**：`prototype/` Python 原型，扣抵值算法已驗證（見 `prototype/verify.md`）
 - **M1（MVP）完成**：搜尋 → 扣抵值表 + 觀察清單 + IndexedDB 快取
 - **M2 完成**：個股頁 K 線圖 + MA5/10/20/60 疊圖（`src/chart.js`，lightweight-charts v4 CDN 延遲載入）
+- **M3 完成**：三大法人買賣超 + 融資融券（`src/chips.js` 整理、`src/cache.js` getInstitutional/getMargin、chart.js 兩個新圖表）
 - 已上線：https://pweichi-art.github.io/post-market/（GitHub Pages，main 根目錄）
 - GitHub：`pweichi-art/post-market`（公開）
-- 待辦：手機實測；下一階段 **M3 = 三大法人 + 融資融券**
+- 待辦：手機實測；下一階段 **M4 = 觀察清單強化 / M5 全市場掃描**
 - 需求凍結見 `SPEC.md`
+
+### 籌碼面資料單位
+- 三大法人 FinMind buy/sell 是「股」，`chips.js` 除以 1000 轉「張」後取整。
+- 分群：外資 = Foreign_Investor + Foreign_Dealer_Self；投信 = Investment_Trust；
+  自營 = Dealer_self + Dealer_Hedging。
+- 融資融券 balance 已是「張」。融資融券資料常比三大法人晚一天釋出（卡片各自標日期）。
+- chart.js 現在可同時掛多張圖，`destroyChart()` 一次清光；router 換頁時呼叫。
 
 ### K 線顏色決策
 K 棒用台股慣例「紅漲綠跌」——這是圖表通用語意、非買賣訊號，不違反 R3。

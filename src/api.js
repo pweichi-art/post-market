@@ -52,3 +52,24 @@ export function fetchDailyPrice(stockId, startDate) {
     start_date: startDate,
   });
 }
+
+/**
+ * 三大法人買賣超（單位：股）。每個交易日每個法人類別一筆。
+ * name: Foreign_Investor / Foreign_Dealer_Self / Investment_Trust / Dealer_self / Dealer_Hedging
+ */
+export function fetchInstitutional(stockId, startDate) {
+  return fetchData({
+    dataset: 'TaiwanStockInstitutionalInvestorsBuySell',
+    data_id: stockId,
+    start_date: startDate,
+  });
+}
+
+/** 融資融券（單位：張）。每個交易日一筆。 */
+export function fetchMargin(stockId, startDate) {
+  return fetchData({
+    dataset: 'TaiwanStockMarginPurchaseShortSale',
+    data_id: stockId,
+    start_date: startDate,
+  });
+}
