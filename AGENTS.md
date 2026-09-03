@@ -11,10 +11,20 @@
 ## 目前狀態（2026-09-03）
 
 - **M0 完成**：`prototype/` Python 原型，扣抵值算法已驗證（見 `prototype/verify.md`）
-- **M1（MVP）功能完成**：搜尋 → 扣抵值表 + 觀察清單 + IndexedDB 快取，瀏覽器實測通過
-- GitHub：`pweichi-art/post-market`（公開），已 push
-- 待辦：開 GitHub Pages、手機實測；下一階段 M2 = K 線圖
+- **M1（MVP）完成**：搜尋 → 扣抵值表 + 觀察清單 + IndexedDB 快取
+- **M2 完成**：個股頁 K 線圖 + MA5/10/20/60 疊圖（`src/chart.js`，lightweight-charts v4 CDN 延遲載入）
+- 已上線：https://pweichi-art.github.io/post-market/（GitHub Pages，main 根目錄）
+- GitHub：`pweichi-art/post-market`（公開）
+- 待辦：手機實測；下一階段 **M3 = 三大法人 + 融資融券**
 - 需求凍結見 `SPEC.md`
+
+### K 線顏色決策
+K 棒用台股慣例「紅漲綠跌」——這是圖表通用語意、非買賣訊號，不違反 R3。
+均線用藍(MA5)/紫(MA10)/琥珀(MA20)/灰(MA60)，刻意避開紅綠。
+
+### 快取新鮮度
+`getPriceSeries` 只在「快取最後一根 K 棒日期 >= 台北今日」時才略過 API；
+否則每次開啟都做增量補抓（從最後日期起，成本低），失敗才退回舊快取。
 
 ### 與 SPEC 檔案結構的差異（MVP 取捨）
 - `src/views/` 尚未拆分，首頁/個股/設定的渲染函式全放在 `src/app.js`。

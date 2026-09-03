@@ -56,10 +56,12 @@
 
 ---
 
-## ⚪ M2：K 線圖
-- [ ] CDN 引入 `lightweight-charts`
-- [ ] 日 K series + MA5/10/20/60 line series
-- [ ] 共用快取資料、手機可縮放
+## ✅ M2：K 線圖（完成）
+- [x] CDN 延遲引入 `lightweight-charts` v4.2.3（`src/chart.js`）
+- [x] 日 K series + MA5/10/20/60 line series
+- [x] 共用快取資料、手機可縮放、換頁自動銷毀、失敗不影響扣抵值表
+- [x] 快取新鮮度改善：非當日資料每次開啟增量補抓
+- [x] 瀏覽器實測 2330 / 6488，console 無錯誤
 
 ## ⚪ M3：籌碼面
 - [ ] `getInstitutional(code)` 三大法人近 20 日

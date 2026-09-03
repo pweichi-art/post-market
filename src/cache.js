@@ -63,17 +63,17 @@ export async function getPriceSeries(stockId) {
   const cached = await get(key);
   const today = taipeiToday();
 
-  // 快取是今天更新的 → 直接用
-  if (cached && cached.updated === today && cached.rows?.length) {
+  // 快取已經有「今天（或更新）」的 K 棒 → 直接用，不必再打 API
+  const cachedLast = cached?.rows?.length ? cached.rows[cached.rows.length - 1].date : null;
+  if (cachedLast && cachedLast >= today) {
     return pack(cached.rows, false, false);
   }
 
   try {
     let rows;
     if (cached && cached.rows?.length) {
-      // 增量：從最後一個交易日往後補
-      const lastDate = cached.rows[cached.rows.length - 1].date;
-      const fresh = await fetchDailyPrice(stockId, lastDate);
+      // 增量：從最後一個交易日往後補（每次開啟都補，成本低）
+      const fresh = await fetchDailyPrice(stockId, cachedLast);
       rows = mergeRows(cached.rows, fresh);
     } else {
       // 首次：抓一段歷史

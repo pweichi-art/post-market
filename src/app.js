@@ -2,6 +2,7 @@
 import { getStockList, getPriceSeries, clearAllCache, taipeiToday,
          getWatchlist, setWatchlist } from './cache.js';
 import { analyze } from './deduction.js';
+import { renderChart, destroyChart } from './chart.js';
 
 const app = document.getElementById('app');
 
@@ -15,6 +16,7 @@ const routes = [
 
 async function router() {
   const hash = location.hash || '#/';
+  destroyChart(); // 換頁先清掉舊圖表，避免殘留
   for (const r of routes) {
     const m = hash.match(r.re);
     if (m) {
@@ -215,11 +217,31 @@ async function stockView(code) {
   btnCard.append(watchBtn);
   wrap.append(btnCard);
 
+  const chartCard = el(`
+    <div class="card">
+      <div class="chart-legend">
+        <span class="lg-k">K 線</span>
+        <span class="lg" style="--c:#5B8DEF">MA5</span>
+        <span class="lg" style="--c:#B57EDC">MA10</span>
+        <span class="lg" style="--c:#E0A93C">MA20</span>
+        <span class="lg" style="--c:#8A8F98">MA60</span>
+      </div>
+      <div id="chart" class="chart"><p class="empty">載入圖表…</p></div>
+    </div>`);
+  wrap.append(chartCard);
+
   for (const r of results) {
     wrap.append(maCard(r, last.close));
   }
 
   setView(wrap);
+
+  // 圖表在畫面掛上、有寬度後再畫；失敗不影響其他內容
+  const chartEl = chartCard.querySelector('#chart');
+  renderChart(chartEl, rows).catch((err) => {
+    console.error(err);
+    chartEl.innerHTML = `<p class="empty">圖表載入失敗（${err.message}），扣抵值分析不受影響</p>`;
+  });
 }
 
 function maCard(r, lastClose) {
