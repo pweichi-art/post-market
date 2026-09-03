@@ -196,6 +196,8 @@ table.ded thead th {
 }
 table.ded tbody tr + tr td { border-top: 1px solid var(--bg); }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
+.ded .sub { color: var(--text-2); font-size: 0.78rem; font-weight: 400; }
+.ma-sub.sub { font-size: 0.8rem; margin-top: 8px; }
 
 .up { color: var(--up); }
 .down { color: var(--down); }

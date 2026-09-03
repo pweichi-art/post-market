@@ -81,6 +81,18 @@ const trendLabel = { up: '↗ 上彎', down: '↘ 下彎', flat: '→ 走平' };
 // 顯示用：最多 2 位小數，去掉多餘的 0（252.40 → 252.4）
 const fmt = (x) => String(Number(x.toFixed(2)));
 
+// 從 fromISO 往後推 n 個「工作日」（只跳週末，未計國定假日 → 顯示時標「約」）
+function projectTradingDate(fromISO, n) {
+  const d = new Date(fromISO + 'T00:00:00');
+  let added = 0;
+  while (added < n) {
+    d.setDate(d.getDate() + 1);
+    const wd = d.getDay();
+    if (wd !== 0 && wd !== 6) added += 1;
+  }
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
 // ---------- 首頁 ----------
 
 async function homeView() {
@@ -233,7 +245,7 @@ async function stockView(code) {
   wrap.append(chartCard);
 
   for (const r of results) {
-    wrap.append(maCard(r, last.close));
+    wrap.append(maCard(r, last.close, dataDate));
   }
 
   const instCard = el(`
@@ -349,17 +361,16 @@ async function renderMargin(node, code) {
     .catch(() => { node.querySelector('#margin-chart').innerHTML = '<p class="empty">圖表載入失敗</p>'; });
 }
 
-function maCard(r, lastClose) {
+function maCard(r, lastClose, dataDate) {
   if (!r.enoughData) {
     return el(`<div class="card"><h2>MA${r.period}</h2><p class="empty">資料不足，無法計算</p></div>`);
   }
   const rowsHtml = r.future.map((fd) => {
     const diff = +(lastClose - fd.deduction).toFixed(2);
     const cls = diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat';
-    const flag = diff > 0 ? '現價已站上' : diff < 0 ? '尚未站上' : '持平';
+    const flag = diff > 0 ? '若持平即上彎' : diff < 0 ? '需再漲' : '打平';
     return `<tr>
-      <td>D+${fd.k}</td>
-      <td>${fd.date.slice(5)}</td>
+      <td>第 ${fd.k} 日<br/><span class="sub">約 ${projectTradingDate(dataDate, fd.k)}</span></td>
       <td class="num">${fd.deduction.toFixed(2)}</td>
       <td class="num ${cls}">${diff > 0 ? '+' : ''}${diff}</td>
       <td class="${cls}">${flag}</td>
@@ -374,12 +385,24 @@ function maCard(r, lastClose) {
       </div>
       <p class="ma-sub">
         目前均價 <b>${fmt(r.maToday)}</b>（昨日 ${fmt(r.maYesterday)}）<br/>
-        若股價維持 ${fmt(lastClose)}，均線可連續上彎 <b>${r.holdUpDays}</b> 個交易日
+        <b>看法</b>：未來某個交易日，當天收盤價站上該列「收盤需站上」的數字，
+        MA${r.period} 當天就會往上彎；低於則往下。<br/>
+        若股價一直維持在今日收盤 ${fmt(lastClose)}，MA${r.period} 可連續上彎
+        <b>${r.holdUpDays}</b> 個交易日
       </p>
       <table class="ded">
-        <thead><tr><th>未來</th><th>日期</th><th>扣抵值<br/>(需站上)</th><th>與現價差</th><th></th></tr></thead>
+        <thead><tr>
+          <th>未來交易日</th>
+          <th class="num">收盤<br/>需站上</th>
+          <th class="num">今收<br/>差額</th>
+          <th>判斷</th>
+        </tr></thead>
         <tbody>${rowsHtml}</tbody>
       </table>
+      <p class="ma-sub sub">「未來交易日」只跳週末、未扣國定假日，故標「約」。${
+        r.period <= r.future.length
+          ? `第 ${r.period} 日的門檻＝今日收盤，因為那天剛好把今天這根 K 棒扣掉。`
+          : ''}</p>
     </div>`);
 }
 
