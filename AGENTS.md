@@ -15,10 +15,29 @@
 - **M2 完成**：個股頁 K 線圖 + MA5/10/20/60 疊圖（`src/chart.js`，lightweight-charts v4 CDN 延遲載入）
 - **M3 完成**：三大法人買賣超 + 融資融券（`src/chips.js` 整理、`src/cache.js` getInstitutional/getMargin、chart.js 兩個新圖表）
 - **M5 完成（精選池版）**：`#/scan` 掃描頁，`src/scan.js`，見下方「掃描設計」
+- **M6 完成**：吉祥物（`src/mascot.js`）+ App icon + Service Worker 離線，見下方「M6 決策記錄」
 - 已上線：https://pweichi-art.github.io/post-market/（GitHub Pages，main 根目錄）
 - GitHub：`pweichi-art/post-market`（公開）
-- 待辦：手機實測；下一階段 **M6 卡通風完稿 + PWA 離線**（M4 觀察清單已有基本版）
+- **M0～M6 全部完成**，目前是依使用者實測回饋做微調的階段，沒有排定的下一個大里程碑
 - 需求凍結見 `SPEC.md`
+
+### M6 決策記錄（吉祥物 / PWA）
+- 吉祥物是手繪 SVG（非外部圖庫），`src/mascot.js` 的 `mascotSvg(mood)`，四種表情：
+  `normal`（頁首）/`confused`（查無資料、空狀態）/`sad`（連線失敗）/`sleepy`（載入中）。
+  純色塊 + path，無外部圖片依賴，深淺色模式都看得清楚。
+- App icon／favicon 是同一隻吉祥物（normal 表情）畫在色塊背景上，manifest 給了
+  `purpose: any` 與 `purpose: maskable` 兩個版本（maskable 版背景滿版無圓角，讓 OS 自己裁形狀）。
+- `sw.js`：只快取「app 外殼」（HTML/CSS/JS）與外部 CDN（lightweight-charts、idb-keyval，
+  網址已 pin 版本，快取安全）。**不快取 FinMind API** ——那層的離線容錯本來就由
+  `cache.js` 的 IndexedDB 負責，SW 重複做反而會製造資料新舊不一致的風險。
+  同源檔案用 cache-first + 背景重抓更新（等於自動處理版本更新，不必每次手動 bump
+  `sw.js` 的 `VERSION`，但改動很大時建議還是 bump 一下，強迫舊分頁立刻換版）。
+- 實測方式：chrome-devtools MCP 的 `emulate(networkConditions: Offline)` 整頁重整，
+  確認 K 線圖、扣抵值表、觀察清單皆可離線顯示（吃 SW app 殼快取 + IndexedDB 資料快取）。
+- 順手修的 bug：對不存在的股票代號，FinMind 回應**沒有 CORS 標頭**（不是正常的
+  400/404），瀏覽器會擋下來變成一般的 fetch 失敗，被誤判成「網路連線失敗」。
+  修法：`stockView` 在打價格 API 之前，先比對已快取的股票清單，代號不存在就直接
+  丟「找不到」錯誤，不必真的打那支請求。
 
 ### 掃描設計（M5）決策記錄
 - 官方全市場端點（TWSE `STOCK_DAY_ALL`、TPEx 大盤報價）**沒開 CORS**，網頁無法直接呼叫；
@@ -90,7 +109,7 @@ PostMarket/
 ├── prototype/            # M0：Python 原型，驗證算法用，不部署
 │   ├── fetch.py / deduction.py / verify.md / data/（gitignore）
 ├── index.html / manifest.json / package.json / .gitattributes
-├── sw.js                 # M6 才加，尚未存在
+├── sw.js                 # Service Worker：app 外殼 + CDN 函式庫離線快取
 ├── src/
 │   ├── app.js            # 路由 + 所有畫面渲染（首頁/個股/掃描/設定，未拆 views/）
 │   ├── api.js            # FinMind 存取 + token 存取（localStorage）
@@ -99,10 +118,10 @@ PostMarket/
 │   ├── chips.js          # 三大法人/融資融券資料整理
 │   ├── chart.js          # lightweight-charts 封裝：K線+均線、法人直方圖、融資券折線
 │   ├── scan.js           # M5 掃描：精選池 + mapLimit 併發 + 候選判斷
+│   ├── mascot.js          # 吉祥物 SVG（normal/confused/sad/sleepy）
 │   └── style.css
 ├── test/
 │   ├── deduction.test.js / chips.test.js / fixture_2330_20260902.json
-└── assets/               # icon、插圖（M6 才會有內容）
 ```
 
 ---

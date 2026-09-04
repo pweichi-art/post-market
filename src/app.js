@@ -7,6 +7,7 @@ import { renderChart, renderInstitutionalChart, renderMarginChart,
 import { aggregateInstitutional, institutionalSum, summarizeMargin } from './chips.js';
 import { runScan } from './scan.js';
 import { getToken, setToken } from './api.js';
+import { mascotSvg } from './mascot.js';
 
 const app = document.getElementById('app');
 
@@ -55,16 +56,17 @@ function setView(node) {
 }
 
 function loadingCard(text = '載入中…') {
-  return el(`<div class="card center"><p class="emoji">🐕</p><p>${text}</p></div>`);
+  return el(`<div class="card center">${mascotSvg('sleepy', 'lg')}<p>${text}</p></div>`);
 }
 
 function renderError(err) {
+  const isConn = err?.kind === 'timeout' || err?.kind === 'network';
   const msg = err?.kind === 'timeout' ? '連線逾時，請稍後再試'
     : err?.kind === 'network' ? '網路連線失敗，請檢查網路'
     : err?.message || '發生未知錯誤';
   setView(el(`
     <div class="card center">
-      <p class="emoji">🤷</p>
+      ${mascotSvg(isConn ? 'sad' : 'confused', 'lg')}
       <p>${msg}</p>
       <a class="btn" href="#/">回首頁</a>
     </div>`));
@@ -73,7 +75,7 @@ function renderError(err) {
 function header(title, back = false) {
   return el(`
     <div class="topbar">
-      ${back ? '<a class="back" href="#/">←</a>' : '<span class="logo">🐕</span>'}
+      ${back ? '<a class="back" href="#/">←</a>' : `<span class="logo">${mascotSvg('normal')}</span>`}
       <h1>${title}</h1>
       <a class="gear" href="#/settings">⚙️</a>
     </div>`);
@@ -167,7 +169,7 @@ async function homeView() {
 async function renderWatchlist(node) {
   const list = await getWatchlist();
   if (!list.length) {
-    node.replaceChildren(el(`<p class="empty">🐾 還沒有觀察股，先搜尋一檔加進來吧</p>`));
+    node.replaceChildren(el(`<div class="empty-state">${mascotSvg('confused')}<p class="empty">還沒有觀察股，先搜尋一檔加進來吧</p></div>`));
     return;
   }
   node.replaceChildren(el('<p class="empty">載入觀察股…</p>'));
@@ -205,6 +207,12 @@ async function stockView(code) {
   let stocks = [];
   try { stocks = await getStockList(); } catch { /* 可略 */ }
   const meta = stocks.find((s) => s.id === code);
+
+  // 股票清單有載到、但代號不存在 → 直接判「查無此股」，不要浪費一次網路請求
+  // （不存在的代號打去 FinMind 常常連 CORS 標頭都不給，會被誤判成連線失敗）
+  if (!meta && stocks.length) {
+    throw new Error(`找不到「${code}」，換個代號或名稱試試？`);
+  }
 
   const { rows, dataDate, stale } = await getPriceSeries(code);
   const dates = rows.map((r) => r.date);

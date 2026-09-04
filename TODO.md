@@ -1,7 +1,7 @@
 # TODO — 盤後小幫手
 
 > 勾選規則：一個 `[ ]` 大約是 30–60 分鐘能收尾的事。做完打 `[x]`。
-> 目前進度：**M1（MVP）功能完成 — 待部署 GitHub Pages + 手機實測**
+> 目前進度：**M0～M6 全部完成，功能面告一段落，持續依使用者回饋微調**
 
 ---
 
@@ -87,13 +87,18 @@
 - [x] 實測：149 檔全過，MA20 抓到 3 檔候選、MA5 抓到 20 檔候選，第二次掃描吃快取秒出
 - [ ] （之後可選）真全市場：Cloudflare Workers 中繼站，使用者決定要不要做
 
-## ⚪ M6：卡通風完稿 + PWA
-- [ ] 配色/圓角/字體套用 UIUX.md
-- [ ] 吉祥物插圖（各狀態）
-- [ ] App icon 多尺寸、manifest 完整
-- [ ] Service Worker 離線可開
-- [ ] Lighthouse PWA 通過
-- [ ] 寫 README
+## ✅ M6：卡通風完稿 + PWA（完成）
+- [x] 配色/圓角已在 M1 套用；新增吉祥物統一視覺語言
+- [x] `src/mascot.js`：手繪 SVG 柴犬吉祥物，4 種表情（normal/confused/sad/sleepy）
+- [x] 套進：頁首 logo、載入中、錯誤頁（依錯誤類型挑表情）、觀察清單空狀態
+- [x] App icon：同一隻吉祥物當 manifest icon（any + maskable）與 favicon
+- [x] `sw.js`：Service Worker，app 外殼 cache-first + 背景更新、CDN 函式庫快取
+- [x] index.html 加 SW 註冊
+- [x] 實測：離線重整整頁（含 K 線圖、觀察清單資料）仍可用
+- [x] 順手修：查無此股時原本誤判成「網路連線失敗」（FinMind 對不存在代號的
+      回應沒有 CORS 標頭）→ 改成先查快取的股票清單，不存在就直接顯示「找不到」
+- [x] README 已在先前更新
+- [ ] Lighthouse PWA 完整跑分（有空再排，功能已用瀏覽器離線模式手動驗證過）
 
 ---
 
