@@ -139,6 +139,31 @@ body {
 .pill.down { background: var(--down); }
 .pill.flat { background: var(--flat); }
 
+/* 首頁掃描入口 */
+.scan-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.scan-entry h2 { margin: 0 0 4px; font-size: 1rem; }
+.scan-entry .hint { margin: 0; }
+
+/* 掃描頁 */
+.period-picker { display: flex; gap: 8px; margin: 10px 0; flex-wrap: wrap; }
+.chip {
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 2px solid var(--bg);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.chip.active { border-color: var(--brand); background: var(--brand); color: #fff; }
+#progress { margin-top: 10px; color: var(--text-2); font-size: 0.9rem; min-height: 1.2em; }
+
 /* K 線圖 */
 .chart {
   position: relative;
@@ -195,6 +220,8 @@ table.ded thead th {
   font-size: 0.8rem;
 }
 table.ded tbody tr + tr td { border-top: 1px solid var(--bg); }
+table.ded a { color: var(--brand); text-decoration: none; }
+table.ded a:hover { text-decoration: underline; }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
 .ded .sub { color: var(--text-2); font-size: 0.78rem; font-weight: 400; }
 .ma-sub.sub { font-size: 0.8rem; margin-top: 8px; }

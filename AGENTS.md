@@ -8,16 +8,29 @@
 
 台股**盤後**個股分析 PWA，核心是「扣抵值 / 均線上彎」分析。單一使用者、純前端、無後端、部署在 GitHub Pages。
 
-## 目前狀態（2026-09-03）
+## 目前狀態（2026-09-04）
 
 - **M0 完成**：`prototype/` Python 原型，扣抵值算法已驗證（見 `prototype/verify.md`）
 - **M1（MVP）完成**：搜尋 → 扣抵值表 + 觀察清單 + IndexedDB 快取
 - **M2 完成**：個股頁 K 線圖 + MA5/10/20/60 疊圖（`src/chart.js`，lightweight-charts v4 CDN 延遲載入）
 - **M3 完成**：三大法人買賣超 + 融資融券（`src/chips.js` 整理、`src/cache.js` getInstitutional/getMargin、chart.js 兩個新圖表）
+- **M5 完成（精選池版）**：`#/scan` 掃描頁，`src/scan.js`，見下方「掃描設計」
 - 已上線：https://pweichi-art.github.io/post-market/（GitHub Pages，main 根目錄）
 - GitHub：`pweichi-art/post-market`（公開）
-- 待辦：手機實測；下一階段 **M4 = 觀察清單強化 / M5 全市場掃描**
+- 待辦：手機實測；下一階段 **M6 卡通風完稿 + PWA 離線**（M4 觀察清單已有基本版）
 - 需求凍結見 `SPEC.md`
+
+### 掃描設計（M5）決策記錄
+- 官方全市場端點（TWSE `STOCK_DAY_ALL`、TPEx 大盤報價）**沒開 CORS**，網頁無法直接呼叫；
+  FinMind 全市場（不帶 data_id）免費版回 400。故不做真全市場掃描。
+- 改用 `src/scan.js` 的 `SCAN_POOL`（~150 檔硬編權值/熱門股代號）＋ 使用者觀察清單，
+  逐檔呼叫既有的 `getPriceSeries`（會吃 IndexedDB 快取，瀏覽過的股票秒出）。
+- 併發上限 4（`mapLimit`），避免瞬間炸開 FinMind 限流；免費 300 次/hr 大致夠掃一次池子。
+- 候選定義寫在 scan.js 開頭註解：`trend !== 'up' && 今收 > 明日扣抵值`。
+- 若使用者要「真全市場」：需加 Cloudflare Workers 中繼站轉發 TWSE/TPEx 請求（唯一允許的
+  後端例外，見上方規則 2），**要先問使用者**，尚未實作。
+- Token：`api.js` 的 `getToken/setToken` 存在 `localStorage`（非機密，只是流量額度），
+  設定頁可填。
 
 ### 籌碼面資料單位
 - 三大法人 FinMind buy/sell 是「股」，`chips.js` 除以 1000 轉「張」後取整。
@@ -69,28 +82,27 @@ K 棒用台股慣例「紅漲綠跌」——這是圖表通用語意、非買賣
 
 ---
 
-## 檔案結構（規劃，實作時建立）
+## 檔案結構（現況，2026-09-04）
 
 ```
 PostMarket/
-├── SPEC.md / ROADMAP.md / UIUX.md / TODO.md / AGENTS.md / GUIDE.md
+├── SPEC.md / ROADMAP.md / UIUX.md / TODO.md / AGENTS.md / GUIDE.md / README.md
 ├── prototype/            # M0：Python 原型，驗證算法用，不部署
-│   ├── fetch.py
-│   ├── deduction.py
-│   └── verify.png
-├── index.html
-├── manifest.json
-├── sw.js                 # M6 才加
+│   ├── fetch.py / deduction.py / verify.md / data/（gitignore）
+├── index.html / manifest.json / package.json / .gitattributes
+├── sw.js                 # M6 才加，尚未存在
 ├── src/
-│   ├── app.js            # 路由 + 進入點
-│   ├── api.js            # 資料來源
-│   ├── cache.js          # IndexedDB
-│   ├── deduction.js      # 核心算法（對照 prototype）
-│   ├── views/            # 首頁 / 個股 / 設定
+│   ├── app.js            # 路由 + 所有畫面渲染（首頁/個股/掃描/設定，未拆 views/）
+│   ├── api.js            # FinMind 存取 + token 存取（localStorage）
+│   ├── cache.js          # IndexedDB：股票清單/日K/法人/融資券/觀察清單
+│   ├── deduction.js      # 核心算法（對照 prototype，逐行翻譯）
+│   ├── chips.js          # 三大法人/融資融券資料整理
+│   ├── chart.js          # lightweight-charts 封裝：K線+均線、法人直方圖、融資券折線
+│   ├── scan.js           # M5 掃描：精選池 + mapLimit 併發 + 候選判斷
 │   └── style.css
 ├── test/
-│   └── deduction.test.js
-└── assets/               # icon、插圖
+│   ├── deduction.test.js / chips.test.js / fixture_2330_20260902.json
+└── assets/               # icon、插圖（M6 才會有內容）
 ```
 
 ---

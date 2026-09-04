@@ -4,13 +4,18 @@
 
 > 本工具僅供個人研究參考，非投資建議。資料為未還原權值收盤價。
 
-## 現況：M1（MVP）
+## 現況：M0～M5 完成
 
 - 股票搜尋（代號 / 名稱）
-- 個股扣抵值分析表（MA5 / MA10 / MA20 / MA60）
+- 個股扣抵值分析表（MA5 / MA10 / MA20 / MA60），標未來交易日與需站上價位
+- K 線圖 + 均線疊圖
+- 三大法人買賣超、融資融券餘額
 - 觀察清單
+- **上彎候選股掃描**：精選池（~150 檔）＋ 觀察清單，找「明日均線可能上彎」的股票
 - 本機快取（IndexedDB），離線可看上次資料
-- 資料來源：[FinMind](https://finmindtrade.com/) 免費 API
+- 資料來源：[FinMind](https://finmindtrade.com/) 免費 API（設定頁可填 token 拉高流量上限）
+
+待做：M6 卡通風視覺完稿 + PWA 離線（Service Worker）。
 
 規劃見 [SPEC.md](SPEC.md) / [ROADMAP.md](ROADMAP.md) / [TODO.md](TODO.md)。
 

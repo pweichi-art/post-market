@@ -5,6 +5,8 @@ import { analyze } from './deduction.js';
 import { renderChart, renderInstitutionalChart, renderMarginChart,
          destroyChart } from './chart.js';
 import { aggregateInstitutional, institutionalSum, summarizeMargin } from './chips.js';
+import { runScan } from './scan.js';
+import { getToken, setToken } from './api.js';
 
 const app = document.getElementById('app');
 
@@ -12,6 +14,7 @@ const app = document.getElementById('app');
 
 const routes = [
   { re: /^#\/stock\/([0-9A-Za-z]+)$/, view: (m) => stockView(m[1]) },
+  { re: /^#\/scan$/, view: scanView },
   { re: /^#\/settings$/, view: settingsView },
   { re: /^#?\/?$/, view: homeView },
 ];
@@ -107,6 +110,16 @@ async function homeView() {
       <ul id="results" class="results"></ul>
     </div>`);
   wrap.append(search);
+
+  const scanCard = el(`
+    <div class="card scan-entry">
+      <div>
+        <h2>🔭 上彎候選股掃描</h2>
+        <p class="hint">在精選池＋觀察清單裡，找明天均線可能上彎的股票</p>
+      </div>
+      <a class="btn" href="#/scan">開始掃描</a>
+    </div>`);
+  wrap.append(scanCard);
 
   const watchCard = el('<div class="card"><h2>我的觀察清單</h2><div id="watch"></div></div>');
   wrap.append(watchCard);
@@ -406,6 +419,82 @@ function maCard(r, lastClose, dataDate) {
     </div>`);
 }
 
+// ---------- 掃描頁 ----------
+
+let lastScanPeriod = 20;
+
+async function scanView() {
+  const wrap = el('<div class="page"></div>');
+  wrap.append(header('上彎候選股掃描', true));
+
+  const ctrlCard = el(`
+    <div class="card">
+      <p class="hint">選均線週期，掃「精選池（約 150 檔）＋ 你的觀察清單」，
+        找出「今天還沒上彎、但明天守住價就會上彎」的股票。</p>
+      <div class="period-picker" id="period-picker">
+        ${[5, 10, 20, 60].map((p) => `<button class="chip${p === lastScanPeriod ? ' active' : ''}" data-p="${p}">MA${p}</button>`).join('')}
+      </div>
+      <button id="run" class="btn">開始掃描</button>
+      <div id="progress"></div>
+    </div>`);
+  wrap.append(ctrlCard);
+
+  const resultCard = el('<div class="card" id="scan-result" hidden></div>');
+  wrap.append(resultCard);
+
+  setView(wrap);
+
+  const picker = ctrlCard.querySelector('#period-picker');
+  picker.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-p]');
+    if (!btn) return;
+    lastScanPeriod = Number(btn.dataset.p);
+    picker.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b === btn));
+  });
+
+  ctrlCard.querySelector('#run').addEventListener('click', async () => {
+    const runBtn = ctrlCard.querySelector('#run');
+    const progress = ctrlCard.querySelector('#progress');
+    runBtn.disabled = true;
+    runBtn.textContent = '掃描中…';
+    resultCard.hidden = true;
+
+    const watchIds = (await getWatchlist()).map((w) => w.id);
+    let stocks = [];
+    try { stocks = await getStockList(); } catch { /* 沒名字也能顯示代號 */ }
+    const nameOf = (code) => stocks.find((s) => s.id === code)?.name || code;
+
+    const result = await runScan(watchIds, lastScanPeriod, (done, total) => {
+      progress.textContent = `掃描中 ${done} / ${total}`;
+    });
+
+    runBtn.disabled = false;
+    runBtn.textContent = '重新掃描';
+    progress.textContent = `完成：掃了 ${result.scanned} 檔，失敗 ${result.failed} 檔`
+      + (result.rateLimited ? '（可能碰到 FinMind 流量限制，稍後再試或到設定頁加 token）' : '');
+
+    resultCard.hidden = false;
+    if (!result.candidates.length) {
+      resultCard.innerHTML = `<p class="empty">🐾 這次沒掃到候選股（池子裡的股票明天都不會上彎，或都已經在上彎中了）</p>`;
+      return;
+    }
+    resultCard.innerHTML = `
+      <h2>候選股（MA${lastScanPeriod}，共 ${result.candidates.length} 檔）</h2>
+      <p class="hint">依「今收距明日扣抵值」的餘裕排序，餘裕越大代表明天越容易守住</p>
+      <table class="ded">
+        <thead><tr><th>股票</th><th class="num">收盤</th><th class="num">明日需站上</th><th class="num">餘裕</th></tr></thead>
+        <tbody>${result.candidates.map((c) => `
+          <tr>
+            <td><a href="#/stock/${c.code}"><b>${c.code}</b> ${nameOf(c.code)}</a></td>
+            <td class="num">${c.close}</td>
+            <td class="num">${c.nextDeduction.toFixed(2)}</td>
+            <td class="num up">+${c.gap}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+  });
+}
+
 // ---------- 設定頁 ----------
 
 async function settingsView() {
@@ -417,6 +506,17 @@ async function settingsView() {
       <p class="ma-sub">今天（台北）：${taipeiToday()}</p>
       <button id="clear" class="btn ghost">清除所有快取並重新抓取</button>
       <p id="clearmsg" class="empty"></p>
+    </div>`));
+  wrap.append(el(`
+    <div class="card">
+      <h2>FinMind Token（選填）</h2>
+      <p class="ma-sub">免登入約 300 次/小時；到
+        <a href="https://finmindtrade.com/analysis/#/data/api" target="_blank" rel="noopener">FinMind 免費註冊</a>
+        拿一組 token 可拉高到 600 次/小時，掃描（M5）會更順。只存在你這台裝置。</p>
+      <input id="token" class="search" type="text" placeholder="貼上 token（留空＝不使用）"
+             value="${getToken()}" autocomplete="off" />
+      <button id="saveToken" class="btn ghost">儲存</button>
+      <p id="tokenmsg" class="empty"></p>
     </div>`));
   wrap.append(el(`
     <div class="card">
@@ -433,6 +533,11 @@ async function settingsView() {
   wrap.querySelector('#clear').addEventListener('click', async () => {
     await clearAllCache();
     wrap.querySelector('#clearmsg').textContent = '已清除，下次查詢會重新抓取。';
+  });
+
+  wrap.querySelector('#saveToken').addEventListener('click', () => {
+    setToken(wrap.querySelector('#token').value.trim());
+    wrap.querySelector('#tokenmsg').textContent = '已儲存。';
   });
 }
 

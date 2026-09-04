@@ -3,6 +3,7 @@
 // 免登入約 300 次/小時，單人使用足夠。回應格式：{ status, msg, data: [...] }
 
 const FINMIND_URL = 'https://api.finmindtrade.com/api/v4/data';
+const TOKEN_KEY = 'finmind_token';
 
 /** 呼叫 API 失敗時丟這個，view 層據此顯示友善訊息。 */
 export class ApiError extends Error {
@@ -13,9 +14,23 @@ export class ApiError extends Error {
   }
 }
 
+// FinMind 免登入約 300 次/小時；免費註冊拿 token 可拉高到 600 次/小時。
+// Token 只是流量額度、非機密憑證，存 localStorage 即可（見 AGENTS.md）。
+export function getToken() {
+  try { return localStorage.getItem(TOKEN_KEY) || ''; } catch { return ''; }
+}
+export function setToken(token) {
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch { /* 私密瀏覽模式等情況下略過 */ }
+}
+
 async function fetchData(params, { timeoutMs = 9000 } = {}) {
   const url = new URL(FINMIND_URL);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+  const token = getToken();
+  if (token) url.searchParams.set('token', token);
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
