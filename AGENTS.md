@@ -21,6 +21,21 @@
 - **M0～M6 全部完成**，目前是依使用者實測回饋做微調的階段，沒有排定的下一個大里程碑
 - 需求凍結見 `SPEC.md`
 
+### 重要教訓：FinMind 額度用完時沒有 CORS 標頭
+FinMind 免費版超過流量上限（300次/hr）回 402 時，**回應不含 `Access-Control-Allow-Origin`**。
+瀏覽器會把它擋成一般的 fetch 失敗（`TypeError: Failed to fetch`），前端拿不到 402 這個
+資訊，只能看到「連不上」。`api.js` 的因應：`navigator.onLine === true` 時，判斷為
+`kind: 'blocked'`（訊息提示可能是額度用完），只有 `navigator.onLine === false` 才說是
+「網路連線失敗」。**開發/測試時注意流量**——M6 那天連續測試（尤其兩輪全池掃描 ×150）
+就把額度燒光，害使用者自己搜股票時也連不上，還一起把「查無此股」判斷成同一種錯誤
+（見下面 M6 決策記錄那條 bug）。之後要一次測很多檔，記得跟使用者說一聲，或叫他去
+設定頁填 FinMind token（免費註冊可拉到 600次/hr）。
+
+### 重要教訓：sw.js 不要用 cache-first 快取同源程式碼
+這個專案還在快速改版，cache-first 會讓使用者重新整理後看到的還是「上一次背景更新前」
+的舊碼，非常難除錯（會以為自己的修正沒生效）。已改成 network-first（見 sw.js 開頭註解），
+**未來不要改回 cache-first**，除非專案進入穩定期不太會變動了。
+
 ### M6 決策記錄（吉祥物 / PWA）
 - 吉祥物是手繪 SVG（非外部圖庫），`src/mascot.js` 的 `mascotSvg(mood)`，四種表情：
   `normal`（頁首）/`confused`（查無資料、空狀態）/`sad`（連線失敗）/`sleepy`（載入中）。

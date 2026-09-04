@@ -105,14 +105,32 @@ body {
 }
 .search:focus { outline: none; border-color: var(--brand); }
 .results { list-style: none; margin: 8px 0 0; padding: 0; }
+.results li.result-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
 .results li a {
   display: block;
+  flex: 1;
   padding: 12px 10px;
   text-decoration: none;
   color: var(--text);
   border-radius: 12px;
 }
 .results li a:hover, .results li a:focus { background: var(--bg); }
+.star-btn {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  font-size: 1.2rem;
+  background: none;
+  border: none;
+  color: var(--brand);
+  cursor: pointer;
+  border-radius: 12px;
+}
+.star-btn:hover, .star-btn:focus { background: var(--bg); }
 
 /* 按鈕 */
 .btn {

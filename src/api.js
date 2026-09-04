@@ -43,7 +43,13 @@ async function fetchData(params, { timeoutMs = 9000 } = {}) {
   } catch (err) {
     if (err.name === 'AbortError') throw new ApiError('連線逾時', 'timeout');
     if (err instanceof ApiError) throw err;
-    throw new ApiError('網路連線失敗', 'network');
+    // fetch 對「真的斷網」和「伺服器擋掉但沒給 CORS 標頭（例如 FinMind 流量
+    // 額度用完時回 402、沒有 Access-Control-Allow-Origin）」丟出一樣的
+    // TypeError，前端分不出來。navigator.onLine 還是 true 時，多半是後者。
+    if (navigator.onLine) {
+      throw new ApiError('資料來源暫時連不上（可能是 FinMind 免費額度用完），請稍後再試', 'blocked');
+    }
+    throw new ApiError('網路連線失敗，請檢查網路', 'network');
   } finally {
     clearTimeout(timer);
   }

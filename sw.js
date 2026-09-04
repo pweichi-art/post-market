@@ -4,11 +4,13 @@
 // IndexedDB 快取處理了；這裡只負責靜態檔案 + 外部 CDN 函式庫。
 //
 // 策略：
-//   同源靜態檔  → cache-first，背景重抓更新快取（下次開啟就是新的）
+//   同源靜態檔  → network-first：有網路一定拿最新版，只有離線才退回快取。
+//               （這個專案還在頻繁改版，cache-first 會讓使用者卡在舊版一直除錯
+//               不出來——改壞過一次才學到，見 AGENTS.md）
 //   外部 CDN    → cache-first（版本有 pin 在網址裡，抓過一次可以放心一直用）
 //   其他（API） → 不攔截，交給網路，失敗就讓呼叫端自己處理
 
-const VERSION = 'v1';
+const VERSION = 'v2';
 const SHELL_CACHE = `shell-${VERSION}`;
 const RUNTIME_CACHE = `runtime-${VERSION}`;
 
@@ -53,18 +55,16 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
 
-  // 同源：app 外殼檔案
+  // 同源：app 外殼檔案。network-first——有網路就一定是最新版，
+  // fetch 失敗（離線）才退回快取。
   if (url.origin === self.location.origin) {
     event.respondWith(
-      caches.match(request).then((cached) => {
-        const fresh = fetch(request)
-          .then((res) => {
-            if (res.ok) caches.open(SHELL_CACHE).then((c) => c.put(request, res.clone()));
-            return res;
-          })
-          .catch(() => cached);
-        return cached || fresh;
-      })
+      fetch(request)
+        .then((res) => {
+          if (res.ok) caches.open(SHELL_CACHE).then((c) => c.put(request, res.clone()));
+          return res;
+        })
+        .catch(() => caches.match(request))
     );
     return;
   }

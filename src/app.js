@@ -60,9 +60,8 @@ function loadingCard(text = '載入中…') {
 }
 
 function renderError(err) {
-  const isConn = err?.kind === 'timeout' || err?.kind === 'network';
+  const isConn = err?.kind === 'timeout' || err?.kind === 'network' || err?.kind === 'blocked';
   const msg = err?.kind === 'timeout' ? '連線逾時，請稍後再試'
-    : err?.kind === 'network' ? '網路連線失敗，請檢查網路'
     : err?.message || '發生未知錯誤';
   setView(el(`
     <div class="card center">
@@ -135,8 +134,30 @@ async function homeView() {
     search.querySelector('.hint').textContent = '股票清單載入失敗，仍可直接輸入代號後按 Enter';
   }
 
+  // 加入觀察清單不需要抓行情，先讀起來，這樣就算 API 額度用完也能加
+  let watchIds = new Set((await getWatchlist()).map((w) => w.id));
+
   const q = search.querySelector('#q');
   const results = search.querySelector('#results');
+
+  const resultRow = (id, name, label) => {
+    const watching = watchIds.has(id);
+    const li = el(`
+      <li class="result-row">
+        <a href="#/stock/${id}">${label || `<b>${id}</b> ${name}`}</a>
+        <button class="star-btn" type="button" title="加入/移出觀察清單">${watching ? '★' : '☆'}</button>
+      </li>`);
+    li.querySelector('.star-btn').addEventListener('click', async () => {
+      const list = await getWatchlist();
+      const idx = list.findIndex((w) => w.id === id);
+      if (idx >= 0) list.splice(idx, 1); else list.push({ id, name });
+      await setWatchlist(list);
+      watchIds = new Set(list.map((w) => w.id));
+      render();
+      await renderWatchlist(watchCard.querySelector('#watch'));
+    });
+    return li;
+  };
 
   const render = () => {
     const term = q.value.trim();
@@ -146,12 +167,9 @@ async function homeView() {
     const hits = stocks
       .filter((s) => s.id.includes(term) || s.name.toLowerCase().includes(lower))
       .slice(0, 12);
-    for (const s of hits) {
-      const li = el(`<li><a href="#/stock/${s.id}"><b>${s.id}</b> ${s.name}</a></li>`);
-      results.append(li);
-    }
+    for (const s of hits) results.append(resultRow(s.id, s.name));
     if (!hits.length && /^[0-9A-Za-z]+$/.test(term)) {
-      results.append(el(`<li><a href="#/stock/${term}">直接查代號 <b>${term}</b></a></li>`));
+      results.append(resultRow(term, term, `直接查代號 <b>${term}</b>`));
     }
   };
   q.addEventListener('input', render);
