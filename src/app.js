@@ -3,11 +3,13 @@ import { getStockList, getPriceSeries, clearAllCache, taipeiToday,
          getWatchlist, setWatchlist, getInstitutional, getMargin } from './cache.js';
 import { analyze } from './deduction.js';
 import { renderChart, renderInstitutionalChart, renderMarginChart,
-         destroyChart } from './chart.js';
+         destroyChart, maColor } from './chart.js';
 import { aggregateInstitutional, institutionalSum, summarizeMargin } from './chips.js';
 import { runScan } from './scan.js';
 import { getToken, setToken } from './api.js';
 import { mascotSvg } from './mascot.js';
+import { getMaPeriods, setMaPeriods, DEFAULT_PERIODS, primaryPeriod,
+         MA_MIN, MA_MAX, MA_MAX_COUNT } from './prefs.js';
 
 const app = document.getElementById('app');
 
@@ -191,14 +193,15 @@ async function renderWatchlist(node) {
     return;
   }
   node.replaceChildren(el('<p class="empty">載入觀察股…</p>'));
+  const refP = primaryPeriod();
   const rows = [];
   for (const item of list) {
     try {
       const { rows: prices } = await getPriceSeries(item.id);
       const dates = prices.map((r) => r.date);
       const closes = prices.map((r) => r.close);
-      const ma20 = analyze(dates, closes, [20])[0];
-      const need = ma20.enoughData ? ma20.future[0].deduction : null;
+      const ref = analyze(dates, closes, [refP])[0];
+      const need = ref.enoughData ? ref.future[0].deduction : null;
       const diff = need == null ? null : +(closes[closes.length - 1] - need).toFixed(2);
       rows.push(el(`
         <a class="watch-row" href="#/stock/${item.id}">
@@ -206,7 +209,7 @@ async function renderWatchlist(node) {
           <span>收 ${closes[closes.length - 1]}</span>
           <span class="${diff >= 0 ? 'up' : 'down'}">
             ${need == null ? '—' : (diff >= 0
-              ? `MA20已站上扣抵 +${diff}` : `距MA20扣抵 ${diff}`)}
+              ? `MA${refP}已站上扣抵 +${diff}` : `距MA${refP}扣抵 ${diff}`)}
           </span>
         </a>`));
     } catch {
@@ -240,7 +243,8 @@ async function stockView(code) {
   const chg = prev ? +(last.close - prev.close).toFixed(2) : 0;
   const chgPct = prev ? ((chg / prev.close) * 100).toFixed(2) : '0.00';
 
-  const results = analyze(dates, closes, [5, 10, 20, 60]);
+  const periods = getMaPeriods();
+  const results = analyze(dates, closes, periods);
 
   const wrap = el('<div class="page"></div>');
   wrap.append(header(`${code}${meta ? ' ' + meta.name : ''}`, true));
@@ -274,10 +278,7 @@ async function stockView(code) {
     <div class="card">
       <div class="chart-legend">
         <span class="lg-k">K 線</span>
-        <span class="lg" style="--c:#5B8DEF">MA5</span>
-        <span class="lg" style="--c:#B57EDC">MA10</span>
-        <span class="lg" style="--c:#E0A93C">MA20</span>
-        <span class="lg" style="--c:#8A8F98">MA60</span>
+        ${periods.map((p, i) => `<span class="lg" style="--c:${maColor(i)}">MA${p}</span>`).join('')}
       </div>
       <div id="chart" class="chart"><p class="empty">載入圖表…</p></div>
     </div>`);
@@ -303,7 +304,7 @@ async function stockView(code) {
 
   // 圖表在畫面掛上、有寬度後再畫；失敗不影響其他內容
   const chartEl = chartCard.querySelector('#chart');
-  renderChart(chartEl, rows).catch((err) => {
+  renderChart(chartEl, rows, periods).catch((err) => {
     console.error(err);
     chartEl.innerHTML = `<p class="empty">圖表載入失敗（${err.message}），扣抵值分析不受影響</p>`;
   });
@@ -447,18 +448,22 @@ function maCard(r, lastClose, dataDate) {
 
 // ---------- 掃描頁 ----------
 
-let lastScanPeriod = 20;
+let lastScanPeriod = null;
 
 async function scanView() {
   const wrap = el('<div class="page"></div>');
   wrap.append(header('上彎候選股掃描', true));
+
+  const scanPeriods = getMaPeriods();
+  // 上次選的週期若已不在清單裡（改過設定），退回主要均線
+  if (!scanPeriods.includes(lastScanPeriod)) lastScanPeriod = primaryPeriod(scanPeriods);
 
   const ctrlCard = el(`
     <div class="card">
       <p class="hint">選均線週期，掃「精選池（約 150 檔）＋ 你的觀察清單」，
         找出「今天還沒上彎、但明天守住價就會上彎」的股票。</p>
       <div class="period-picker" id="period-picker">
-        ${[5, 10, 20, 60].map((p) => `<button class="chip${p === lastScanPeriod ? ' active' : ''}" data-p="${p}">MA${p}</button>`).join('')}
+        ${scanPeriods.map((p) => `<button class="chip${p === lastScanPeriod ? ' active' : ''}" data-p="${p}">MA${p}</button>`).join('')}
       </div>
       <button id="run" class="btn">開始掃描</button>
       <div id="progress"></div>
@@ -535,6 +540,19 @@ async function settingsView() {
     </div>`));
   wrap.append(el(`
     <div class="card">
+      <h2>均線週期</h2>
+      <p class="ma-sub">用逗號分隔，${MA_MIN}～${MA_MAX} 之間，最多 ${MA_MAX_COUNT} 條。
+        改完會套用到扣抵值表、K 線圖、觀察清單、掃描頁。只存在你這台裝置。</p>
+      <input id="periods" class="search" type="text" inputmode="numeric"
+             value="${getMaPeriods().join(', ')}" autocomplete="off" />
+      <div class="period-actions">
+        <button id="savePeriods" class="btn ghost">儲存</button>
+        <button id="resetPeriods" class="btn ghost">恢復預設（${DEFAULT_PERIODS.join('/')}）</button>
+      </div>
+      <p id="periodsMsg" class="empty"></p>
+    </div>`));
+  wrap.append(el(`
+    <div class="card">
       <h2>FinMind Token（選填）</h2>
       <p class="ma-sub">免登入約 300 次/小時；到
         <a href="https://finmindtrade.com/analysis/#/data/api" target="_blank" rel="noopener">FinMind 免費註冊</a>
@@ -549,8 +567,7 @@ async function settingsView() {
       <h2>關於</h2>
       <p class="ma-sub">
         盤後小幫手 v0.1（MVP）<br/>
-        資料來源：FinMind（未還原權值）<br/>
-        均線週期：MA5 / MA10 / MA20 / MA60（未來版本可自訂）
+        資料來源：FinMind（未還原權值）
       </p>
       <p class="ma-sub"><a href="https://github.com/pweichi-art/post-market" target="_blank" rel="noopener">原始碼</a></p>
     </div>`));
@@ -565,6 +582,17 @@ async function settingsView() {
     setToken(wrap.querySelector('#token').value.trim());
     wrap.querySelector('#tokenmsg').textContent = '已儲存。';
   });
+
+  const periodsInput = wrap.querySelector('#periods');
+  const periodsMsg = wrap.querySelector('#periodsMsg');
+  const applyPeriods = (raw) => {
+    const wanted = raw.split(/[,，\s]+/).filter(Boolean).map(Number);
+    const saved = setMaPeriods(wanted);
+    periodsInput.value = saved.join(', ');
+    periodsMsg.textContent = `已儲存：MA${saved.join(' / MA')}`;
+  };
+  wrap.querySelector('#savePeriods').addEventListener('click', () => applyPeriods(periodsInput.value));
+  wrap.querySelector('#resetPeriods').addEventListener('click', () => applyPeriods(DEFAULT_PERIODS.join(',')));
 }
 
 // ---------- 線上 / 離線提示 ----------

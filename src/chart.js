@@ -36,7 +36,9 @@ function palette() {
         up: '#D64545', down: '#2E9E63' };
 }
 
-const MA_COLORS = { 5: '#5B8DEF', 10: '#B57EDC', 20: '#E0A93C', 60: '#8A8F98' };
+// 均線用色盤：第 i 條均線用第 i 個顏色（避開紅綠，跟 K 棒區隔）。
+export const MA_PALETTE = ['#5B8DEF', '#B57EDC', '#E0A93C', '#8A8F98', '#3AAF7A', '#E0607E'];
+export const maColor = (i) => MA_PALETTE[i % MA_PALETTE.length];
 
 // 建一張圖 + 綁 ResizeObserver + 登記到 actives，回傳 { LWC, chart, palette }
 function makeChart(container, extraOpts = {}) {
@@ -101,17 +103,17 @@ export async function renderChart(container, rows, periods = [5, 10, 20, 60]) {
     time: r.date, open: r.open, high: r.max, low: r.min, close: r.close,
   })));
 
-  for (const p of periods) {
-    if (rows.length < p) continue;
+  periods.forEach((p, i) => {
+    if (rows.length < p) return;
     const line = chart.addLineSeries({
-      color: MA_COLORS[p] || '#999',
+      color: maColor(i),
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: false,
       crosshairMarkerVisible: false,
     });
     line.setData(movingAverage(rows, p));
-  }
+  });
 
   const n = rows.length;
   chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - 120), to: n + 3 });

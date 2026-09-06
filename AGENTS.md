@@ -8,7 +8,7 @@
 
 台股**盤後**個股分析 PWA，核心是「扣抵值 / 均線上彎」分析。單一使用者、純前端、無後端、部署在 GitHub Pages。
 
-## 目前狀態（2026-09-04）
+## 目前狀態（2026-09-06）
 
 - **M0 完成**：`prototype/` Python 原型，扣抵值算法已驗證（見 `prototype/verify.md`）
 - **M1（MVP）完成**：搜尋 → 扣抵值表 + 觀察清單 + IndexedDB 快取
@@ -16,6 +16,10 @@
 - **M3 完成**：三大法人買賣超 + 融資融券（`src/chips.js` 整理、`src/cache.js` getInstitutional/getMargin、chart.js 兩個新圖表）
 - **M5 完成（精選池版）**：`#/scan` 掃描頁，`src/scan.js`，見下方「掃描設計」
 - **M6 完成**：吉祥物（`src/mascot.js`）+ App icon + Service Worker 離線，見下方「M6 決策記錄」
+- **均線週期自訂（09-06）**：`src/prefs.js` 的 `getMaPeriods/setMaPeriods`（存 localStorage，
+  同步讀取，2～240、最多 6 條）。`primaryPeriod()` 取中間那條給觀察清單/掃描頁預設用
+  （預設 [5,10,20,60] → 20，維持原行為）。圖表色盤在 `chart.js` 的 `MA_PALETTE`（第 i 條
+  用第 i 色）。`deduction.js` 保持純函式、不讀偏好——呼叫端傳明確 periods 進去。
 - 已上線：https://pweichi-art.github.io/post-market/（GitHub Pages，main 根目錄）
 - GitHub：`pweichi-art/post-market`（公開）
 - **M0～M6 全部完成**，目前是依使用者實測回饋做微調的階段，沒有排定的下一個大里程碑
@@ -45,8 +49,8 @@ FinMind 免費版超過流量上限（300次/hr）回 402 時，**回應不含 `
 - `sw.js`：只快取「app 外殼」（HTML/CSS/JS）與外部 CDN（lightweight-charts、idb-keyval，
   網址已 pin 版本，快取安全）。**不快取 FinMind API** ——那層的離線容錯本來就由
   `cache.js` 的 IndexedDB 負責，SW 重複做反而會製造資料新舊不一致的風險。
-  同源檔案用 cache-first + 背景重抓更新（等於自動處理版本更新，不必每次手動 bump
-  `sw.js` 的 `VERSION`，但改動很大時建議還是 bump 一下，強迫舊分頁立刻換版）。
+  同源檔案是 **network-first**（09-04 從 cache-first 改過來，見上面「重要教訓」）。
+  改到 `SHELL_FILES` 就 bump `VERSION`。
 - 實測方式：chrome-devtools MCP 的 `emulate(networkConditions: Offline)` 整頁重整，
   確認 K 線圖、扣抵值表、觀察清單皆可離線顯示（吃 SW app 殼快取 + IndexedDB 資料快取）。
 - 順手修的 bug：對不存在的股票代號，FinMind 回應**沒有 CORS 標頭**（不是正常的
@@ -75,7 +79,7 @@ FinMind 免費版超過流量上限（300次/hr）回 402 時，**回應不含 `
 
 ### K 線顏色決策
 K 棒用台股慣例「紅漲綠跌」——這是圖表通用語意、非買賣訊號，不違反 R3。
-均線用藍(MA5)/紫(MA10)/琥珀(MA20)/灰(MA60)，刻意避開紅綠。
+均線用 `chart.js` 的 `MA_PALETTE`（藍/紫/琥珀/灰/青/桃，第 i 條均線用第 i 色），刻意避開紅綠。
 
 ### 快取新鮮度
 `getPriceSeries` 只在「快取最後一根 K 棒日期 >= 台北今日」時才略過 API；
@@ -116,7 +120,7 @@ K 棒用台股慣例「紅漲綠跌」——這是圖表通用語意、非買賣
 
 ---
 
-## 檔案結構（現況，2026-09-04）
+## 檔案結構（現況，2026-09-06）
 
 ```
 PostMarket/
@@ -124,19 +128,20 @@ PostMarket/
 ├── prototype/            # M0：Python 原型，驗證算法用，不部署
 │   ├── fetch.py / deduction.py / verify.md / data/（gitignore）
 ├── index.html / manifest.json / package.json / .gitattributes
-├── sw.js                 # Service Worker：app 外殼 + CDN 函式庫離線快取
+├── sw.js                 # Service Worker：app 外殼 + CDN 函式庫離線快取（network-first）
 ├── src/
 │   ├── app.js            # 路由 + 所有畫面渲染（首頁/個股/掃描/設定，未拆 views/）
 │   ├── api.js            # FinMind 存取 + token 存取（localStorage）
 │   ├── cache.js          # IndexedDB：股票清單/日K/法人/融資券/觀察清單
-│   ├── deduction.js      # 核心算法（對照 prototype，逐行翻譯）
+│   ├── deduction.js      # 核心算法（純函式，對照 prototype）
 │   ├── chips.js          # 三大法人/融資融券資料整理
-│   ├── chart.js          # lightweight-charts 封裝：K線+均線、法人直方圖、融資券折線
+│   ├── chart.js          # lightweight-charts 封裝 + MA_PALETTE 色盤
 │   ├── scan.js           # M5 掃描：精選池 + mapLimit 併發 + 候選判斷
-│   ├── mascot.js          # 吉祥物 SVG（normal/confused/sad/sleepy）
+│   ├── mascot.js         # 吉祥物 SVG（normal/confused/sad/sleepy）
+│   ├── prefs.js          # 使用者偏好：均線週期（localStorage）
 │   └── style.css
 ├── test/
-│   ├── deduction.test.js / chips.test.js / fixture_2330_20260902.json
+│   ├── deduction.test.js / chips.test.js / prefs.test.js / fixture_2330_20260902.json
 ```
 
 ---

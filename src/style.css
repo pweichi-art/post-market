@@ -185,6 +185,7 @@ body {
 
 /* 掃描頁 */
 .period-picker { display: flex; gap: 8px; margin: 10px 0; flex-wrap: wrap; }
+.period-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 .chip {
   padding: 8px 16px;
   border-radius: 999px;
