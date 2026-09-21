@@ -3,7 +3,7 @@ import { getStockList, getPriceSeries, clearAllCache, taipeiToday,
          getWatchlist, setWatchlist, getInstitutional, getMargin } from './cache.js';
 import { analyze } from './deduction.js';
 import { renderChart, renderInstitutionalChart, renderMarginChart,
-         destroyChart, maColor } from './chart.js';
+         destroyChart, maColor, TREND_UP_COLOR, TREND_DOWN_COLOR } from './chart.js';
 import { aggregateInstitutional, institutionalSum, summarizeMargin } from './chips.js';
 import { runScan } from './scan.js';
 import { getToken, setToken, checkToken } from './api.js';
@@ -11,7 +11,7 @@ import { mascotSvg } from './mascot.js';
 import { getMaPeriods, setMaPeriods, DEFAULT_PERIODS, primaryPeriod,
          MA_MIN, MA_MAX, MA_MAX_COUNT,
          getSwingPct, setSwingPct, DEFAULT_SWING_PCT, SWING_MIN, SWING_MAX } from './prefs.js';
-import { detectSwings, waveDirection, nearestLevels } from './swing.js';
+import { detectSwings, waveDirection, nearestLevels, trendLines } from './swing.js';
 import { maAlignment, pricePosition, volumeSignal, relativeStrength } from './indicators.js';
 
 const app = document.getElementById('app');
@@ -286,6 +286,7 @@ async function stockView(code) {
         <span class="lg-k">K 線</span>
         ${periods.map((p, i) => `<span class="lg" style="--c:${maColor(i)}">MA${p}</span>`).join('')}
         <span class="lg-zig">轉折</span>
+        <span id="lg-trend"></span>
       </div>
       <div id="chart" class="chart"><p class="empty">載入圖表…</p></div>
       <p id="swing-note" class="ma-sub sub"></p>
@@ -316,10 +317,17 @@ async function stockView(code) {
   const swings = detectSwings(
     rows.map((r) => r.max), rows.map((r) => r.min), swingPct,
   );
-  renderCheckup(checkupCard, rows, periods, swings);
+  const lines = trendLines(swings.pivots, closes);
+  renderCheckup(checkupCard, rows, periods, swings, lines);
   renderSwingNote(wrap.querySelector('#swing-note'), rows, swings, swingPct);
+  const lgTrend = wrap.querySelector('#lg-trend');
+  if (lgTrend) {
+    lgTrend.innerHTML =
+      (lines.up?.valid ? `<span class="lg" style="--c:${TREND_UP_COLOR}">上升切線</span>` : '')
+      + (lines.down?.valid ? `<span class="lg" style="--c:${TREND_DOWN_COLOR}">下降切線</span>` : '');
+  }
 
-  renderChart(chartEl, rows, periods, swings).catch((err) => {
+  renderChart(chartEl, rows, periods, swings, lines).catch((err) => {
     console.error(err);
     chartEl.innerHTML = `<p class="empty">圖表載入失敗（${err.message}），扣抵值分析不受影響</p>`;
   });
@@ -468,7 +476,7 @@ function checkRow(name, value, note = '') {
   return `<tr><th>${name}</th><td>${value}</td><td class="sub">${note}</td></tr>`;
 }
 
-async function renderCheckup(card, rows, periods, swings) {
+async function renderCheckup(card, rows, periods, swings, lines) {
   const closes = rows.map((r) => r.close);
   const highs = rows.map((r) => r.max);
   const lows = rows.map((r) => r.min);
@@ -524,6 +532,25 @@ async function renderCheckup(card, rows, periods, swings) {
     : `<span class="sub">${word}：這個區間內沒有</span>`;
   const lvHtml = `${lvPart(lv.support, '支撐')}　${lvPart(lv.resistance, '壓力')}`;
 
+  // 切：切線。只講「站上／跌破」與價位，書上的意義放在說明欄
+  const trendPart = (ln, name, cls) => {
+    if (!ln || !ln.valid) return '';
+    const state = ln.above
+      ? `<span class="up">站在線上</span>` : `<span class="down">已跌破</span>`;
+    return `<span class="${cls}">${name}</span> <b>${ln.valueNow}</b>`
+      + `<span class="sub">（現價${ln.above ? '高' : '低'} ${ln.distPct}%）</span> ${state}`;
+  };
+  const trendParts = [
+    trendPart(lines?.up, '上升切線', 'trend-up'),
+    trendPart(lines?.down, '下降切線', 'trend-down'),
+  ].filter(Boolean);
+  const trendHtml = trendParts.length
+    ? trendParts.join('<br/>')
+    : '<span class="sub">目前沒有方向明確的切線</span>';
+  const trendNote = trendParts.length
+    ? '書上：跌破上升切線／突破下降切線，是走勢可能改變的地方'
+    : '要有兩個底愈墊愈高（或兩個頭愈壓愈低）才畫得出切線';
+
   card.innerHTML = `
     <h2>技術面體檢</h2>
     <table class="checkup">
@@ -534,11 +561,12 @@ async function renderCheckup(card, rows, periods, swings) {
         ${checkRow('股價位置', posHtml, posNote)}
         ${checkRow('量能', volHtml, volNote)}
         ${checkRow('支撐 / 壓力', lvHtml, `轉折門檻 ${getSwingPct()}%，設定頁可調`)}
+        ${checkRow('切線', trendHtml, trendNote)}
         ${checkRow('比大盤', '<span class="sub" id="rs-cell">載入大盤資料…</span>', '個股漲幅減大盤漲幅')}
       </tbody>
     </table>
-    <p class="ma-sub sub">出自朱家泓「看圖十字訣」，已做 波・均・量・強・支・阻 六項。
-      尚未實作：型（型態辨識）、切（切線）、離（背離）。</p>`;
+    <p class="ma-sub sub">出自朱家泓「看圖十字訣」，已做 波・均・量・強・切・支・阻 七項。
+      尚未實作：型（型態辨識）、離（背離）。</p>`;
 
   // 大盤要另外抓，慢一點沒關係，失敗也不影響上面四項
   const rsCell = card.querySelector('#rs-cell');

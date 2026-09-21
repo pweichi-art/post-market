@@ -142,3 +142,52 @@ test('支阻：未確認的轉折點也算進去', () => {
   const r = nearestLevels(pivots, P(10,'high',130), 100);
   assert.equal(r.resistance.price, 130);
 });
+
+// ---------- 切線 ----------
+
+import { trendLines } from '../src/swing.js';
+
+test('切：上升切線＝最後兩個底連線，延伸到今天', () => {
+  const pivots = [P(0,'low',100), P(5,'high',115), P(10,'low',110)];
+  const closes = new Array(21).fill(130); // n=21，今天 idx=20，收盤 130
+  const { up } = trendLines(pivots, closes);
+  assert.equal(up.slope, 1);          // (110-100)/(10-0)
+  assert.equal(up.valueNow, 120);     // 100 + 1*(20-0)
+  assert.equal(up.above, true);       // 130 > 120
+  assert.equal(up.distPct, 7.7);      // (130-120)/130
+  assert.equal(up.valid, true);       // 底墊高 → 是真的上升切線
+});
+
+test('切：底愈來愈低 → 連線畫得出來但不是上升切線（valid=false）', () => {
+  const pivots = [P(0,'low',120), P(5,'high',130), P(10,'low',100)];
+  const closes = new Array(21).fill(90);
+  const { up } = trendLines(pivots, closes);
+  assert.equal(up.slope, -2);
+  assert.equal(up.valid, false);
+});
+
+test('切：下降切線＝最後兩個頭連線，頭愈壓愈低才有效', () => {
+  const pivots = [P(0,'high',150), P(5,'low',120), P(10,'high',130)];
+  const closes = new Array(21).fill(105);
+  const { down } = trendLines(pivots, closes);
+  assert.equal(down.slope, -2);        // (130-150)/10
+  assert.equal(down.valueNow, 110);    // 150 + (-2)*20
+  assert.equal(down.above, false);     // 105 < 110，還在壓力線下方
+  assert.equal(down.valid, true);
+});
+
+test('切：盤整時上下兩條都有效（上下頸線）', () => {
+  const pivots = [
+    P(0,'low',100), P(5,'high',120), P(10,'low',101), P(15,'high',119),
+  ];
+  const closes = new Array(21).fill(110);
+  const r = trendLines(pivots, closes);
+  assert.equal(r.up.valid, true);    // 底 100→101 微墊高
+  assert.equal(r.down.valid, true);  // 頭 120→119 微壓低
+});
+
+test('切：轉折點不足 → 該方向為 null', () => {
+  const r = trendLines([P(0,'low',100), P(5,'high',120)], new Array(10).fill(110));
+  assert.equal(r.up, null);
+  assert.equal(r.down, null);
+});

@@ -338,3 +338,9 @@ table.checkup tr + tr th, table.checkup tr + tr td { border-top: 1px solid var(-
   vertical-align: middle;
   margin-right: 4px;
 }
+.trend-up { color: #0EA5A5; font-weight: 600; }
+.trend-down { color: #C2410C; font-weight: 600; }
+@media (prefers-color-scheme: dark) {
+  .trend-up { color: #3FD0CB; }
+  .trend-down { color: #F08A5D; }
+}

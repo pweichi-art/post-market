@@ -142,3 +142,51 @@ export function nearestLevels(pivots, tentative, close) {
   };
   return { support: pack(below, true) || null, resistance: pack(above, false) || null };
 }
+
+// ---------- 切：切線（趨勢線）----------
+
+/**
+ * 由轉折點畫切線，並延伸到今天（書上第5篇十字訣第七步「切」）：
+ *   上升切線＝最後兩個「底」的連線（上漲時的支撐）
+ *   下降切線＝最後兩個「頭」的連線（下跌時的壓力）
+ *   盤整時兩條都在，就是上下頸線
+ *
+ * 只有方向對的線才算數：兩個底愈墊愈高（slope > 0）才是上升切線，
+ * 兩個頭愈壓愈低（slope < 0）才是下降切線——否則那條線畫得出來但不是切線。
+ * 用已確認的轉折點，理由同 waveDirection。
+ *
+ * @param {Array} pivots 已確認轉折點
+ * @param {number[]} closes 收盤價（只用長度與最後一筆）
+ * @returns {{up: null|object, down: null|object}} 每條線含
+ *   from/to（兩個轉折點）、slope（每根 K 棒漲跌多少）、valueNow（延伸到今天的價位）、
+ *   above（現價是否在線上方）、distPct（現價距離切線幾 %）、valid（方向對不對）
+ */
+export function trendLines(pivots, closes) {
+  const n = closes.length;
+  if (!n) return { up: null, down: null };
+  const close = closes[n - 1];
+
+  const build = (a, b) => {
+    if (b.idx === a.idx) return null;
+    const slope = (b.price - a.price) / (b.idx - a.idx);
+    const valueNow = a.price + slope * (n - 1 - a.idx);
+    return {
+      from: a,
+      to: b,
+      slope,
+      valueNow: Math.round(valueNow * 100) / 100,
+      above: close > valueNow,
+      distPct: Math.round(Math.abs(close - valueNow) / close * 1000) / 10,
+    };
+  };
+
+  const highs = pivots.filter((p) => p.type === 'high');
+  const lows = pivots.filter((p) => p.type === 'low');
+  const up = lows.length >= 2 ? build(lows[lows.length - 2], lows[lows.length - 1]) : null;
+  const down = highs.length >= 2 ? build(highs[highs.length - 2], highs[highs.length - 1]) : null;
+
+  return {
+    up: up ? { ...up, valid: up.slope > 0 } : null,
+    down: down ? { ...down, valid: down.slope < 0 } : null,
+  };
+}

@@ -40,6 +40,10 @@ function palette() {
 export const MA_PALETTE = ['#5B8DEF', '#B57EDC', '#E0A93C', '#8A8F98', '#3AAF7A', '#E0607E'];
 export const maColor = (i) => MA_PALETTE[i % MA_PALETTE.length];
 
+// 切線顏色（跟均線色盤、K 棒紅綠都區隔開）
+export const TREND_UP_COLOR = '#0EA5A5';
+export const TREND_DOWN_COLOR = '#C2410C';
+
 // 建一張圖 + 綁 ResizeObserver + 登記到 actives，回傳 { LWC, chart, palette }
 function makeChart(container, extraOpts = {}) {
   const c = palette();
@@ -85,7 +89,7 @@ export function destroyChart() {
  * @param {Array} rows [{date, open, max, min, close}]（由舊到新）
  * @param {number[]} periods 要疊哪幾條均線
  */
-export async function renderChart(container, rows, periods = [5, 10, 20, 60], swings = null) {
+export async function renderChart(container, rows, periods = [5, 10, 20, 60], swings = null, lines = null) {
   await loadLib();
   container.innerHTML = '';
   const { chart, c } = makeChart(container, {
@@ -140,6 +144,24 @@ export async function renderChart(container, rows, periods = [5, 10, 20, 60], sw
         text: (p.type === 'high' ? '頭' : '底') + (unconfirmed ? '?' : ''),
       };
     }));
+  }
+
+  // 切線（十字訣「切」）：只畫方向對的那條，從第一個轉折點延伸到今天
+  if (lines) {
+    const drawLine = (ln, color) => {
+      if (!ln || !ln.valid) return;
+      const series = chart.addLineSeries({
+        color, lineWidth: 2,
+        priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+      });
+      const data = [];
+      for (let i = ln.from.idx; i < rows.length; i++) {
+        data.push({ time: rows[i].date, value: ln.from.price + ln.slope * (i - ln.from.idx) });
+      }
+      series.setData(data);
+    };
+    drawLine(lines.up, TREND_UP_COLOR);
+    drawLine(lines.down, TREND_DOWN_COLOR);
   }
 
   const n = rows.length;
