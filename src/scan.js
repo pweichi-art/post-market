@@ -14,6 +14,8 @@ import { calcMA } from './deduction.js';
 import { ApiError } from './api.js';
 import { getMaPeriods } from './prefs.js';
 import { maAlignment, pricePosition, volumeSignal, relativeStrength } from './indicators.js';
+import { detectSwings, waveDirection } from './swing.js';
+import { getSwingPct } from './prefs.js';
 
 // 精選池（權值股 + 各族群熱門股）。代號是固定識別碼，就算某檔已下市，掃描時略過即可。
 export const SCAN_POOL = [
@@ -82,6 +84,7 @@ async function mapLimit(items, limit, fn, onProgress) {
 export async function runScan(extraCodes, period, onProgress) {
   const universe = [...new Set([...SCAN_POOL, ...extraCodes])];
   const periods = getMaPeriods();
+  const swingPct = getSwingPct();
   let rateLimitHits = 0;
 
   // 大盤只抓一次，給「比大盤強弱」用；抓不到就讓 RS 留空，不影響其他欄位
@@ -106,6 +109,8 @@ export async function runScan(extraCodes, period, onProgress) {
     const pos = pricePosition(prices.map((x) => x.max), prices.map((x) => x.min), closes, 120);
     const vol = volumeSignal(closes, prices.map((x) => x.volume), 20);
     const rs = bench ? relativeStrength(prices, bench, [20]) : { enough: false };
+    const sw = detectSwings(prices.map((x) => x.max), prices.map((x) => x.min), swingPct);
+    const wave = waveDirection(sw.pivots, sw.tentative);
 
     return {
       code,
@@ -124,6 +129,8 @@ export async function runScan(extraCodes, period, onProgress) {
       volRatio: vol.enough ? vol.ratio : null,
       pv: vol.enough ? vol.pv : null,
       rs20: rs.enough ? rs.items[0].rs : null,
+      wave: wave.enough ? wave.dir : null,
+      waveBreaking: wave.enough ? wave.breaking : null,
       // 候選：今日還沒上彎，但今日收盤已站上明日扣抵值 → 明天守住價就翻上
       isCandidate: r.trend !== 'up' && gap > 0,
     };

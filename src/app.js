@@ -11,7 +11,7 @@ import { mascotSvg } from './mascot.js';
 import { getMaPeriods, setMaPeriods, DEFAULT_PERIODS, primaryPeriod,
          MA_MIN, MA_MAX, MA_MAX_COUNT,
          getSwingPct, setSwingPct, DEFAULT_SWING_PCT, SWING_MIN, SWING_MAX } from './prefs.js';
-import { detectSwings } from './swing.js';
+import { detectSwings, waveDirection, nearestLevels } from './swing.js';
 import { maAlignment, pricePosition, volumeSignal, relativeStrength } from './indicators.js';
 
 const app = document.getElementById('app');
@@ -312,13 +312,11 @@ async function stockView(code) {
 
   // 圖表在畫面掛上、有寬度後再畫；失敗不影響其他內容
   const chartEl = chartCard.querySelector('#chart');
-  renderCheckup(checkupCard, rows, periods);
-
-  // 十字訣「波」的地基：轉折點。目前只畫出來給人驗收，還沒拿來判斷波浪方向。
   const swingPct = getSwingPct();
   const swings = detectSwings(
     rows.map((r) => r.max), rows.map((r) => r.min), swingPct,
   );
+  renderCheckup(checkupCard, rows, periods, swings);
   renderSwingNote(wrap.querySelector('#swing-note'), rows, swings, swingPct);
 
   renderChart(chartEl, rows, periods, swings).catch((err) => {
@@ -453,6 +451,11 @@ const ZONE_LABEL = {
   waist: '腰部（山腰）',
   peak: '高檔（山頂）',
 };
+const WAVE_LABEL = {
+  up: { text: '上升波', cls: 'up', hint: '頭頭高、底底高' },
+  down: { text: '下跌波', cls: 'down', hint: '頭頭低、底底低' },
+  range: { text: '盤整波', cls: 'flat', hint: '頭底沒有一致方向' },
+};
 const PV_LABEL = {
   up_vol_up: '價漲量增',
   up_vol_down: '價漲量縮',
@@ -465,7 +468,7 @@ function checkRow(name, value, note = '') {
   return `<tr><th>${name}</th><td>${value}</td><td class="sub">${note}</td></tr>`;
 }
 
-async function renderCheckup(card, rows, periods) {
+async function renderCheckup(card, rows, periods, swings) {
   const closes = rows.map((r) => r.close);
   const highs = rows.map((r) => r.max);
   const lows = rows.map((r) => r.min);
@@ -497,19 +500,45 @@ async function renderCheckup(card, rows, periods) {
     : '<span class="sub">資料不足</span>';
   const volNote = vol.enough ? `前 20 日均量 ${vol.avg.toLocaleString('en-US')}` : '';
 
+  // 波：波浪方向（只用已確認的轉折點判斷）
+  const wave = waveDirection(swings.pivots, swings.tentative);
+  let waveHtml = '<span class="sub">轉折點不足，無法判斷</span>';
+  let waveNote = '需要至少兩個頭、兩個底';
+  if (wave.enough) {
+    const W = WAVE_LABEL[wave.dir];
+    const breakTag = wave.breaking === 'newHigh' ? '　<span class="up">目前正在創新高</span>'
+      : wave.breaking === 'newLow' ? '　<span class="down">目前正在破新低</span>' : '';
+    waveHtml = `<span class="pill ${W.cls}">${W.text}</span>${breakTag}`;
+    const d = (pv) => rows[pv.idx].date.slice(5);
+    waveNote = `${W.hint}｜頭 ${wave.highs[0].price}(${d(wave.highs[0])})`
+      + `→${wave.highs[1].price}(${d(wave.highs[1])})`
+      + `、底 ${wave.lows[0].price}(${d(wave.lows[0])})→${wave.lows[1].price}(${d(wave.lows[1])})`
+      + `<br/>判斷只用已確認的轉折點，日期愈舊代表這個方向愈久沒更新`;
+  }
+
+  // 支 / 阻：離現價最近的前波高低點
+  const lv = nearestLevels(swings.pivots, swings.tentative, closes[closes.length - 1]);
+  const lvPart = (x, word) => x
+    ? `${word} <b>${x.price}</b><span class="sub">（${x.type === 'high' ? '前頭' : '前底'}，`
+      + `${word === '壓力' ? '+' : '−'}${x.distPct}%）</span>`
+    : `<span class="sub">${word}：這個區間內沒有</span>`;
+  const lvHtml = `${lvPart(lv.support, '支撐')}　${lvPart(lv.resistance, '壓力')}`;
+
   card.innerHTML = `
     <h2>技術面體檢</h2>
     <table class="checkup">
       <tbody>
+        ${checkRow('波浪方向', waveHtml, waveNote)}
         ${checkRow('均線排列', alignHtml, ALIGN_LABEL[al.alignment]?.hint || '')}
         ${checkRow('均線糾結', congestHtml, '擠得愈密、愈久，突破時力道愈大')}
         ${checkRow('股價位置', posHtml, posNote)}
         ${checkRow('量能', volHtml, volNote)}
+        ${checkRow('支撐 / 壓力', lvHtml, `轉折門檻 ${getSwingPct()}%，設定頁可調`)}
         ${checkRow('比大盤', '<span class="sub" id="rs-cell">載入大盤資料…</span>', '個股漲幅減大盤漲幅')}
       </tbody>
     </table>
-    <p class="ma-sub sub">出自朱家泓「看圖十字訣」。
-      尚未實作：波（波浪方向）、型（型態）、切（切線）、支（支撐）、阻（壓力）、離（背離）。</p>`;
+    <p class="ma-sub sub">出自朱家泓「看圖十字訣」，已做 波・均・量・強・支・阻 六項。
+      尚未實作：型（型態辨識）、切（切線）、離（背離）。</p>`;
 
   // 大盤要另外抓，慢一點沒關係，失敗也不影響上面四項
   const rsCell = card.querySelector('#rs-cell');
@@ -581,6 +610,14 @@ function maCard(r, lastClose, dataDate) {
 
 // 掃描表用的精簡標籤
 const ALIGN_SHORT = { bull: '多頭', bear: '空頭', mixed: '交叉' };
+const WAVE_SHORT = { up: '上升', down: '下跌', range: '盤整' };
+
+function waveShort(c) {
+  if (!c.wave) return '—';
+  const cls = c.wave === 'up' ? 'up' : c.wave === 'down' ? 'down' : 'flat';
+  const mark = c.waveBreaking === 'newHigh' ? '↑' : c.waveBreaking === 'newLow' ? '↓' : '';
+  return `<span class="${cls}">${WAVE_SHORT[c.wave]}${mark}</span>`;
+}
 const ZONE_SHORT = { valley: '低', waist: '腰', peak: '高' };
 
 function alignShort(c) {
@@ -659,7 +696,9 @@ async function scanView() {
     resultCard.innerHTML = `
       <h2>候選股（MA${lastScanPeriod}，共 ${result.candidates.length} 檔）</h2>
       <p class="hint">依「今收距明日扣抵值」的餘裕排序，餘裕越大代表明天越容易守住。
-        右邊四欄是技術面參考（出自十字訣的均・位・量・強），不參與排序。</p>
+        右邊五欄是技術面參考（出自十字訣的波・均・位・量・強），不參與排序。
+        做多時「波」是第一關：上升波的均線上彎，品質通常勝過下跌波裡的反彈。
+        波旁邊的 ↑ 表示最後一段正在創新高。</p>
       <div class="table-scroll">
       <table class="ded">
         <thead><tr>
@@ -667,6 +706,7 @@ async function scanView() {
           <th class="num">收盤</th>
           <th class="num">明日<br/>需站上</th>
           <th class="num">餘裕</th>
+          <th>波</th>
           <th>排列</th>
           <th class="num">位置</th>
           <th class="num">量比</th>
@@ -678,6 +718,7 @@ async function scanView() {
             <td class="num">${c.close}</td>
             <td class="num">${c.nextDeduction.toFixed(2)}</td>
             <td class="num up">+${c.gap}</td>
+            <td>${waveShort(c)}</td>
             <td>${alignShort(c)}</td>
             <td class="num">${posShort(c)}</td>
             <td class="num">${c.volRatio ?? '—'}</td>

@@ -73,3 +73,72 @@ export function detectSwings(highs, lows, thresholdPct = 6) {
 
   return { pivots, tentative };
 }
+
+// ---------- 波：波浪方向 ----------
+
+/**
+ * 用轉折點判斷波浪方向（書上第1篇第3章、十字訣第一步「波」）：
+ *   上升波＝頭頭高 且 底底高　下跌波＝頭頭低 且 底底低　其餘＝盤整波
+ *
+ * 只用「已確認」的轉折點下判斷，未確認的那一段另外回報——因為它還會動，
+ * 拿還沒定案的極值下結論會讓方向一天到晚翻來覆去。
+ *
+ * @param {Array} pivots    detectSwings 回傳的已確認轉折點
+ * @param {object|null} tentative 未確認的那一個
+ * @returns {{enough:boolean, dir?:'up'|'down'|'range',
+ *            higherHigh?:boolean, higherLow?:boolean,
+ *            highs?:Array, lows?:Array, breaking?:'newHigh'|'newLow'|null}}
+ */
+export function waveDirection(pivots, tentative = null) {
+  const highs = pivots.filter((p) => p.type === 'high');
+  const lows = pivots.filter((p) => p.type === 'low');
+  if (highs.length < 2 || lows.length < 2) return { enough: false };
+
+  const [prevH, lastH] = highs.slice(-2);
+  const [prevL, lastL] = lows.slice(-2);
+  const higherHigh = lastH.price > prevH.price;
+  const higherLow = lastL.price > prevL.price;
+  const lowerHigh = lastH.price < prevH.price;
+  const lowerLow = lastL.price < prevL.price;
+
+  const dir = higherHigh && higherLow ? 'up'
+    : lowerHigh && lowerLow ? 'down'
+    : 'range';
+
+  // 還在走的那一段有沒有正在突破前高 / 跌破前低（預告方向可能改變）
+  let breaking = null;
+  if (tentative) {
+    if (tentative.type === 'high' && tentative.price > lastH.price) breaking = 'newHigh';
+    if (tentative.type === 'low' && tentative.price < lastL.price) breaking = 'newLow';
+  }
+
+  return { enough: true, dir, higherHigh, higherLow,
+           highs: [prevH, lastH], lows: [prevL, lastL], breaking };
+}
+
+// ---------- 支 / 阻：最近的前波高低點 ----------
+
+/**
+ * 從轉折點找出離現價最近的支撐與壓力。
+ * 書上第8、9步：前底、前頭都可能是支撐或壓力（跌到它是撐、漲到它是壓），
+ * 所以這裡不分頭底，只看價位相對現價的上下。
+ *
+ * @returns {{support: null|{price,type,idx,distPct}, resistance: null|{...}}}
+ *   distPct 支撐＝現價往下幾 %；壓力＝現價往上幾 %
+ */
+export function nearestLevels(pivots, tentative, close) {
+  const all = [...pivots];
+  if (tentative) all.push(tentative);
+  if (!all.length || !(close > 0)) return { support: null, resistance: null };
+
+  const below = all.filter((p) => p.price < close).sort((a, b) => b.price - a.price)[0];
+  const above = all.filter((p) => p.price > close).sort((a, b) => a.price - b.price)[0];
+
+  const pack = (p, isSupport) => p && {
+    price: p.price,
+    type: p.type,
+    idx: p.idx,
+    distPct: Math.round(Math.abs(isSupport ? close - p.price : p.price - close) / close * 1000) / 10,
+  };
+  return { support: pack(below, true) || null, resistance: pack(above, false) || null };
+}

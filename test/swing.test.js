@@ -66,3 +66,79 @@ test('資料太少或門檻為 0 → 回空結果', () => {
   assert.deepEqual(detectSwings([1, 2], [1, 2], 5), { pivots: [], tentative: null });
   assert.deepEqual(detectSwings([1, 2, 3], [1, 2, 3], 0), { pivots: [], tentative: null });
 });
+
+// ---------- 波浪方向 ----------
+
+import { waveDirection, nearestLevels } from '../src/swing.js';
+
+const P = (idx, type, price) => ({ idx, type, price });
+
+test('波：頭頭高 + 底底高 → 上升波', () => {
+  const pivots = [P(0,'low',100), P(5,'high',120), P(10,'low',110), P(15,'high',135)];
+  const r = waveDirection(pivots);
+  assert.equal(r.enough, true);
+  assert.equal(r.dir, 'up');
+  assert.equal(r.higherHigh, true);
+  assert.equal(r.higherLow, true);
+});
+
+test('波：頭頭低 + 底底低 → 下跌波', () => {
+  const pivots = [P(0,'high',150), P(5,'low',120), P(10,'high',140), P(15,'low',105)];
+  assert.equal(waveDirection(pivots).dir, 'down');
+});
+
+test('波：頭過頭但底破底（不一致）→ 盤整波', () => {
+  const pivots = [P(0,'low',100), P(5,'high',120), P(10,'low',95), P(15,'high',130)];
+  const r = waveDirection(pivots);
+  assert.equal(r.dir, 'range');
+  assert.equal(r.higherHigh, true);
+  assert.equal(r.higherLow, false);
+});
+
+test('波：頭不過頭、底不破底 → 盤整波', () => {
+  const pivots = [P(0,'low',100), P(5,'high',120), P(10,'low',102), P(15,'high',118)];
+  assert.equal(waveDirection(pivots).dir, 'range');
+});
+
+test('波：轉折點不足兩組 → enough:false', () => {
+  assert.equal(waveDirection([P(0,'low',100), P(5,'high',120)]).enough, false);
+  assert.equal(waveDirection([]).enough, false);
+});
+
+test('波：未確認那段正在創新高 → breaking = newHigh', () => {
+  const pivots = [P(0,'low',100), P(5,'high',120), P(10,'low',110), P(15,'high',130)];
+  assert.equal(waveDirection(pivots, P(20,'high',145)).breaking, 'newHigh');
+  assert.equal(waveDirection(pivots, P(20,'high',125)).breaking, null); // 沒過前高
+  assert.equal(waveDirection(pivots, P(20,'low',105)).breaking, 'newLow');
+});
+
+// ---------- 支撐 / 壓力 ----------
+
+test('支阻：取離現價最近的上下轉折點，不分頭底', () => {
+  const pivots = [P(0,'low',80), P(5,'high',120), P(10,'low',95), P(15,'high',110)];
+  const r = nearestLevels(pivots, null, 100);
+  assert.equal(r.support.price, 95);      // 下方最近（是個底）
+  assert.equal(r.resistance.price, 110);  // 上方最近（是個頭）
+  assert.equal(r.support.distPct, 5);     // (100-95)/100
+  assert.equal(r.resistance.distPct, 10); // (110-100)/100
+});
+
+test('支阻：前底也可能是壓力（現價在它下面時）', () => {
+  const pivots = [P(0,'low',80), P(5,'high',200), P(10,'low',120)];
+  const r = nearestLevels(pivots, null, 100);
+  assert.equal(r.resistance.price, 120);
+  assert.equal(r.resistance.type, 'low');  // 上方最近的是一個「底」
+});
+
+test('支阻：沒有上方轉折點時壓力為 null', () => {
+  const pivots = [P(0,'low',80), P(5,'high',95)];
+  const r = nearestLevels(pivots, null, 100);
+  assert.equal(r.resistance, null);
+  assert.equal(r.support.price, 95);
+});
+
+test('支阻：未確認的轉折點也算進去', () => {
+  const pivots = [P(0,'low',80)];
+  const r = nearestLevels(pivots, P(10,'high',130), 100);
+  assert.equal(r.resistance.price, 130);
+});
