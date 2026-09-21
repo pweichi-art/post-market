@@ -329,3 +329,12 @@ table.checkup tr + tr th, table.checkup tr + tr td { border-top: 1px solid var(-
 /* 寬表格在手機上橫向捲動，不要把整頁撐開 */
 .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .table-scroll table { min-width: 560px; }
+.chart-legend .lg-zig::before {
+  content: "";
+  display: inline-block;
+  width: 14px;
+  height: 0;
+  border-top: 1px dashed var(--text-2);
+  vertical-align: middle;
+  margin-right: 4px;
+}

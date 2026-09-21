@@ -9,7 +9,9 @@ import { runScan } from './scan.js';
 import { getToken, setToken } from './api.js';
 import { mascotSvg } from './mascot.js';
 import { getMaPeriods, setMaPeriods, DEFAULT_PERIODS, primaryPeriod,
-         MA_MIN, MA_MAX, MA_MAX_COUNT } from './prefs.js';
+         MA_MIN, MA_MAX, MA_MAX_COUNT,
+         getSwingPct, setSwingPct, DEFAULT_SWING_PCT, SWING_MIN, SWING_MAX } from './prefs.js';
+import { detectSwings } from './swing.js';
 import { maAlignment, pricePosition, volumeSignal, relativeStrength } from './indicators.js';
 
 const app = document.getElementById('app');
@@ -283,8 +285,10 @@ async function stockView(code) {
       <div class="chart-legend">
         <span class="lg-k">K 線</span>
         ${periods.map((p, i) => `<span class="lg" style="--c:${maColor(i)}">MA${p}</span>`).join('')}
+        <span class="lg-zig">轉折</span>
       </div>
       <div id="chart" class="chart"><p class="empty">載入圖表…</p></div>
+      <p id="swing-note" class="ma-sub sub"></p>
     </div>`);
   wrap.append(chartCard);
 
@@ -310,7 +314,14 @@ async function stockView(code) {
   const chartEl = chartCard.querySelector('#chart');
   renderCheckup(checkupCard, rows, periods);
 
-  renderChart(chartEl, rows, periods).catch((err) => {
+  // 十字訣「波」的地基：轉折點。目前只畫出來給人驗收，還沒拿來判斷波浪方向。
+  const swingPct = getSwingPct();
+  const swings = detectSwings(
+    rows.map((r) => r.max), rows.map((r) => r.min), swingPct,
+  );
+  renderSwingNote(wrap.querySelector('#swing-note'), rows, swings, swingPct);
+
+  renderChart(chartEl, rows, periods, swings).catch((err) => {
     console.error(err);
     chartEl.innerHTML = `<p class="empty">圖表載入失敗（${err.message}），扣抵值分析不受影響</p>`;
   });
@@ -405,6 +416,28 @@ async function renderMargin(node, code) {
     </table>`;
   renderMarginChart(node.querySelector('#margin-chart'), m.slice(-40))
     .catch(() => { node.querySelector('#margin-chart').innerHTML = '<p class="empty">圖表載入失敗</p>'; });
+}
+
+// ---------- 轉折點說明（十字訣「波」的地基，尚未做波浪方向判定）----------
+
+function renderSwingNote(node, rows, swings, swingPct) {
+  if (!node) return;
+  const all = [...swings.pivots];
+  if (swings.tentative) all.push(swings.tentative);
+  if (!all.length) {
+    node.textContent = `轉折門檻 ${swingPct}%：這段期間沒有超過門檻的轉折（可到設定頁調小）。`;
+    return;
+  }
+  const recent = all.slice(-6);
+  const seq = recent.map((p, i) => {
+    const unconfirmed = swings.tentative && p === all[all.length - 1];
+    const name = p.type === 'high' ? '頭' : '底';
+    const date = rows[p.idx].date.slice(5);
+    return `<b class="${p.type === 'high' ? 'up' : 'down'}">${name}</b> ${p.price}` +
+      `<span class="sub">（${date}${unconfirmed ? '・未確認' : ''}）</span>`;
+  }).join(' → ');
+  node.innerHTML = `轉折門檻 <b>${swingPct}%</b>（設定頁可調）　最近轉折：${seq}
+    <br/>標「未確認」表示這一段還在走，之後可能再創新高/新低而移動。`;
 }
 
 // ---------- 技術面體檢（十字訣的 均・量・強・位 四項）----------
@@ -684,6 +717,19 @@ async function settingsView() {
     </div>`));
   wrap.append(el(`
     <div class="card">
+      <h2>轉折點門檻</h2>
+      <p class="ma-sub">回檔或反彈超過多少 % 才算一個轉折（${SWING_MIN}～${SWING_MAX}）。
+        設小轉折多而雜、設大只剩大波段——沒有標準答案，調完到個股頁的 K 線圖上看看順不順眼。</p>
+      <input id="swing" class="search" type="number" step="0.5"
+             min="${SWING_MIN}" max="${SWING_MAX}" value="${getSwingPct()}" />
+      <div class="period-actions">
+        <button id="saveSwing" class="btn ghost">儲存</button>
+        <button id="resetSwing" class="btn ghost">恢復預設（${DEFAULT_SWING_PCT}%）</button>
+      </div>
+      <p id="swingMsg" class="empty"></p>
+    </div>`));
+  wrap.append(el(`
+    <div class="card">
       <h2>FinMind Token（選填）</h2>
       <p class="ma-sub">免登入約 300 次/小時；到
         <a href="https://finmindtrade.com/analysis/#/data/api" target="_blank" rel="noopener">FinMind 免費註冊</a>
@@ -722,6 +768,15 @@ async function settingsView() {
     periodsInput.value = saved.join(', ');
     periodsMsg.textContent = `已儲存：MA${saved.join(' / MA')}`;
   };
+  const swingInput = wrap.querySelector('#swing');
+  const applySwing = (v) => {
+    const saved = setSwingPct(v);
+    swingInput.value = saved;
+    wrap.querySelector('#swingMsg').textContent = `已儲存：${saved}%`;
+  };
+  wrap.querySelector('#saveSwing').addEventListener('click', () => applySwing(swingInput.value));
+  wrap.querySelector('#resetSwing').addEventListener('click', () => applySwing(DEFAULT_SWING_PCT));
+
   wrap.querySelector('#savePeriods').addEventListener('click', () => applyPeriods(periodsInput.value));
   wrap.querySelector('#resetPeriods').addEventListener('click', () => applyPeriods(DEFAULT_PERIODS.join(',')));
 }

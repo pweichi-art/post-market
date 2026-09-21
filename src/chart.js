@@ -85,7 +85,7 @@ export function destroyChart() {
  * @param {Array} rows [{date, open, max, min, close}]（由舊到新）
  * @param {number[]} periods 要疊哪幾條均線
  */
-export async function renderChart(container, rows, periods = [5, 10, 20, 60]) {
+export async function renderChart(container, rows, periods = [5, 10, 20, 60], swings = null) {
   await loadLib();
   container.innerHTML = '';
   const { chart, c } = makeChart(container, {
@@ -114,6 +114,33 @@ export async function renderChart(container, rows, periods = [5, 10, 20, 60]) {
     });
     line.setData(movingAverage(rows, p));
   });
+
+  // 轉折點（十字訣「波」）：折線連起來 + 在 K 棒上標「頭 / 底」
+  if (swings && (swings.pivots?.length || swings.tentative)) {
+    const all = [...swings.pivots];
+    if (swings.tentative) all.push(swings.tentative);
+
+    const zig = chart.addLineSeries({
+      color: c.text,
+      lineWidth: 1,
+      lineStyle: window.LightweightCharts.LineStyle.Dashed,
+      priceLineVisible: false,
+      lastValueVisible: false,
+      crosshairMarkerVisible: false,
+    });
+    zig.setData(all.map((p) => ({ time: rows[p.idx].date, value: p.price })));
+
+    candle.setMarkers(all.map((p, i) => {
+      const unconfirmed = swings.tentative && i === all.length - 1;
+      return {
+        time: rows[p.idx].date,
+        position: p.type === 'high' ? 'aboveBar' : 'belowBar',
+        color: unconfirmed ? c.text : (p.type === 'high' ? c.up : c.down),
+        shape: 'circle',
+        text: (p.type === 'high' ? '頭' : '底') + (unconfirmed ? '?' : ''),
+      };
+    }));
+  }
 
   const n = rows.length;
   chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - 120), to: n + 3 });

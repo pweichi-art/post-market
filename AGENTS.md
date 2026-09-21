@@ -29,6 +29,14 @@
   **刻意不做綜合評分／「符合 N/10 項」**——那會滑向買賣訊號，違反硬性規則 1（使用者 09-21 確認）。
   大盤資料：`getPriceSeries('TAIEX')` 直接可用（FinMind 的 `TaiwanStockPrice` 支援 `data_id=TAIEX`），
   不必改快取層；掃描時只抓一次，抓不到就讓 RS 欄留白，不影響其他欄位。
+- **轉折點偵測（2026-09-21）**：`src/swing.js` 的 `detectSwings(highs, lows, thresholdPct)`，
+  百分比回撤式 ZigZag，高點取 `max`、低點取 `min`（與書上看圖定義一致）。
+  回傳 `pivots`（已確認）與 `tentative`（最後一段還在走、未確認）。
+  門檻存在 `prefs.js` 的 `getSwingPct/setSwingPct`（預設 6%，2～20，設定頁可調）。
+  **這個參數沒有標準答案**——設小轉折多而雜、設大只剩大波段，所以一定要把結果畫在
+  K 線上（`chart.js` 的 `swings` 參數：虛線 + 頭/底 標記）讓人目視檢查，不要只丟結論。
+  已知邊界效應：資料第一根會被當成起點轉折，那只是視窗邊界不是真轉折（離現在很遠，可忽略）。
+  **狀態：波浪方向判定（頭頭高底底高）尚未實作**，目前只把轉折點畫出來給使用者驗收。
 - 已上線：https://pweichi-art.github.io/post-market/（GitHub Pages，main 根目錄）
 - GitHub：`pweichi-art/post-market`（公開）
 - **M0～M6 全部完成**，目前是依使用者實測回饋做微調的階段，沒有排定的下一個大里程碑
@@ -149,9 +157,10 @@ PostMarket/
 │   ├── mascot.js         # 吉祥物 SVG（normal/confused/sad/sleepy）
 │   ├── prefs.js          # 使用者偏好：均線週期（localStorage）
 │   ├── indicators.js     # 十字訣指標：均線排列/糾結、位置、量能、比大盤（純函式）
+│   ├── swing.js          # 轉折點偵測 ZigZag（「波」的地基，純函式）
 │   └── style.css
 ├── test/
-│   ├── deduction.test.js / chips.test.js / prefs.test.js / indicators.test.js
+│   ├── deduction.test.js / chips.test.js / prefs.test.js / indicators.test.js / swing.test.js
 │   └── fixture_2330_20260902.json
 ```
 

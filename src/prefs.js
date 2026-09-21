@@ -38,3 +38,29 @@ export function primaryPeriod(periods = getMaPeriods()) {
 }
 
 export { MIN as MA_MIN, MAX as MA_MAX, MAX_COUNT as MA_MAX_COUNT };
+
+// ---------- 轉折點門檻（十字訣「波」）----------
+// 回檔或反彈超過這個百分比才算一個轉折。沒有標準答案，設小轉折多、設大只剩大波段。
+
+const SWING_KEY = 'swing_pct';
+export const DEFAULT_SWING_PCT = 6;
+export const SWING_MIN = 2;
+export const SWING_MAX = 20;
+
+export function getSwingPct() {
+  try {
+    const v = Number(localStorage.getItem(SWING_KEY));
+    return Number.isFinite(v) && v >= SWING_MIN && v <= SWING_MAX ? v : DEFAULT_SWING_PCT;
+  } catch {
+    return DEFAULT_SWING_PCT;
+  }
+}
+
+export function setSwingPct(v) {
+  const n = Number(v);
+  const clean = Number.isFinite(n) && n >= SWING_MIN && n <= SWING_MAX
+    ? Math.round(n * 10) / 10
+    : DEFAULT_SWING_PCT;
+  try { localStorage.setItem(SWING_KEY, String(clean)); } catch { /* 略過 */ }
+  return clean;
+}

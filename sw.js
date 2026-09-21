@@ -10,7 +10,7 @@
 //   外部 CDN    → cache-first（版本有 pin 在網址裡，抓過一次可以放心一直用）
 //   其他（API） → 不攔截，交給網路，失敗就讓呼叫端自己處理
 
-const VERSION = 'v4';
+const VERSION = 'v5';
 const SHELL_CACHE = `shell-${VERSION}`;
 const RUNTIME_CACHE = `runtime-${VERSION}`;
 
@@ -28,6 +28,7 @@ const SHELL_FILES = [
   './src/mascot.js',
   './src/prefs.js',
   './src/indicators.js',
+  './src/swing.js',
   './src/style.css',
 ];
 
