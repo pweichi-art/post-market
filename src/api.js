@@ -3,6 +3,11 @@
 // 免登入約 300 次/小時，單人使用足夠。回應格式：{ status, msg, data: [...] }
 
 const FINMIND_URL = 'https://api.finmindtrade.com/api/v4/data';
+// 查帳號狀態用的端點。它跟資料 API 不同：**有開 CORS**，而且把錯誤放在 HTTP 200 的
+// body 裡（{status:400, msg:'Token 非法.'}），所以瀏覽器讀得到真正的原因。
+// 資料 API 的 400（token 錯）和 402（額度用完）都不給 CORS 標頭，前端分不出來，
+// 只能靠這支來判斷 token 到底有沒有效。
+const USER_INFO_URL = 'https://api.web.finmindtrade.com/v2/user_info';
 const TOKEN_KEY = 'finmind_token';
 
 /** 呼叫 API 失敗時丟這個，view 層據此顯示友善訊息。 */
@@ -26,6 +31,38 @@ export function setToken(token) {
   } catch { /* 私密瀏覽模式等情況下略過 */ }
 }
 
+/**
+ * 測試 token 是否有效。回錯誤「代碼」不回中文——文案留給 view 層
+ * （FinMind 自己的訊息是「Token 違法」，直接顯示給使用者看不懂）。
+ * @returns {Promise<{ok:boolean, reason:string, raw?:string, info?:object}>}
+ *   reason: 'ok' | 'empty' | 'invalid' | 'timeout' | 'network' | 'unknown'
+ */
+export async function checkToken(token = getToken()) {
+  const t = (token || '').trim();
+  if (!t) return { ok: false, reason: 'empty' };
+
+  const url = new URL(USER_INFO_URL);
+  url.searchParams.set('token', t);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 9000);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    const body = await res.json().catch(() => null);
+    if (!body) return { ok: false, reason: 'unknown' };
+    if (body.status && body.status !== 200) {
+      const raw = String(body.msg || '');
+      // FinMind 對無效 token 會回「Token 違法.」或「Token is illegal.」
+      const invalid = /illegal|違法|非法|invalid/i.test(raw);
+      return { ok: false, reason: invalid ? 'invalid' : 'unknown', raw };
+    }
+    return { ok: true, reason: 'ok', info: body };
+  } catch (err) {
+    return { ok: false, reason: err.name === 'AbortError' ? 'timeout' : 'network' };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function fetchData(params, { timeoutMs = 9000 } = {}) {
   const url = new URL(FINMIND_URL);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
@@ -47,7 +84,14 @@ async function fetchData(params, { timeoutMs = 9000 } = {}) {
     // 額度用完時回 402、沒有 Access-Control-Allow-Origin）」丟出一樣的
     // TypeError，前端分不出來。navigator.onLine 還是 true 時，多半是後者。
     if (navigator.onLine) {
-      throw new ApiError('資料來源暫時連不上（可能是 FinMind 免費額度用完），請稍後再試', 'blocked');
+      // 額度用完(402)與 token 非法(400)在瀏覽器端長得一模一樣，所以有填 token 時
+      // 兩種可能都要講，不能只怪額度（設定頁有「測試 token」可以確認是哪一種）。
+      throw new ApiError(
+        getToken()
+          ? '資料來源暫時連不上（可能是額度用完，或 token 有誤——可到設定頁按「測試 token」確認）'
+          : '資料來源暫時連不上（可能是 FinMind 免費額度用完），請稍後再試',
+        'blocked',
+      );
     }
     throw new ApiError('網路連線失敗，請檢查網路', 'network');
   } finally {

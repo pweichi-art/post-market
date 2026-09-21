@@ -6,7 +6,7 @@ import { renderChart, renderInstitutionalChart, renderMarginChart,
          destroyChart, maColor } from './chart.js';
 import { aggregateInstitutional, institutionalSum, summarizeMargin } from './chips.js';
 import { runScan } from './scan.js';
-import { getToken, setToken } from './api.js';
+import { getToken, setToken, checkToken } from './api.js';
 import { mascotSvg } from './mascot.js';
 import { getMaPeriods, setMaPeriods, DEFAULT_PERIODS, primaryPeriod,
          MA_MIN, MA_MAX, MA_MAX_COUNT,
@@ -736,7 +736,10 @@ async function settingsView() {
         拿一組 token 可拉高到 600 次/小時，掃描（M5）會更順。只存在你這台裝置。</p>
       <input id="token" class="search" type="text" placeholder="貼上 token（留空＝不使用）"
              value="${getToken()}" autocomplete="off" />
-      <button id="saveToken" class="btn ghost">儲存</button>
+      <div class="period-actions">
+        <button id="saveToken" class="btn ghost">儲存並測試</button>
+        <button id="testToken" class="btn ghost">只測試</button>
+      </div>
       <p id="tokenmsg" class="empty"></p>
     </div>`));
   wrap.append(el(`
@@ -755,10 +758,28 @@ async function settingsView() {
     wrap.querySelector('#clearmsg').textContent = '已清除，下次查詢會重新抓取。';
   });
 
+  const tokenMsg = wrap.querySelector('#tokenmsg');
+  const TOKEN_REASON = {
+    ok: '✓ token 有效，額度已提高到 600 次/小時',
+    empty: '未填 token（維持免登入的 300 次/小時）',
+    invalid: '✗ token 不正確 — 請確認是否整串複製到（前後不要有空白或換行）',
+    timeout: '✗ 連線逾時，稍後再按一次',
+    network: '✗ 連不上 FinMind，請檢查網路',
+    unknown: '✗ 測不出來，稍後再試',
+  };
+  const runTokenTest = async (prefix) => {
+    tokenMsg.textContent = `${prefix}測試中…`;
+    tokenMsg.classList.remove('up', 'down');
+    const r = await checkToken(wrap.querySelector('#token').value.trim());
+    tokenMsg.textContent = prefix + (TOKEN_REASON[r.reason] || TOKEN_REASON.unknown);
+    tokenMsg.classList.toggle('up', r.ok);
+    tokenMsg.classList.toggle('down', !r.ok && r.reason !== 'empty');
+  };
   wrap.querySelector('#saveToken').addEventListener('click', () => {
     setToken(wrap.querySelector('#token').value.trim());
-    wrap.querySelector('#tokenmsg').textContent = '已儲存。';
+    runTokenTest('已儲存　');
   });
+  wrap.querySelector('#testToken').addEventListener('click', () => runTokenTest(''));
 
   const periodsInput = wrap.querySelector('#periods');
   const periodsMsg = wrap.querySelector('#periodsMsg');

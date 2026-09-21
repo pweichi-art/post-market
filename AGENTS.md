@@ -42,6 +42,17 @@
 - **M0～M6 全部完成**，目前是依使用者實測回饋做微調的階段，沒有排定的下一個大里程碑
 - 需求凍結見 `SPEC.md`
 
+### token 有效性只能靠 user_info 端點判斷
+資料 API（`api/v4/data`）的 **400（token 非法）與 402（額度用完）都不給 CORS 標頭**，
+瀏覽器兩者都只看到一般的 fetch 失敗，**分不出來**。若使用者 token 打錯，會一直被誤報成
+「額度用完」，永遠查不出原因。
+解法：`api.js` 的 `checkToken()` 改打 `https://api.web.finmindtrade.com/v2/user_info`——
+這支**有開 CORS**，而且把錯誤放在 HTTP 200 的 body 裡（`{status:400, msg:'Token 違法.'}`），
+瀏覽器讀得到。設定頁的「儲存並測試 / 只測試」按鈕就是用它。
+`checkToken` 回 **reason 代碼**（ok/empty/invalid/timeout/network/unknown）不回中文，
+文案在 `app.js` 的 `TOKEN_REASON`——因為 FinMind 自己的中文是「Token 違法」，
+直接顯示使用者看不懂。
+
 ### 重要教訓：FinMind 額度用完時沒有 CORS 標頭
 FinMind 免費版超過流量上限（300次/hr）回 402 時，**回應不含 `Access-Control-Allow-Origin`**。
 瀏覽器會把它擋成一般的 fetch 失敗（`TypeError: Failed to fetch`），前端拿不到 402 這個
