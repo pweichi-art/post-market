@@ -297,3 +297,35 @@ table.ded a:hover { text-decoration: underline; }
 }
 
 .loading { text-align: center; color: var(--text-2); padding: 40px; }
+
+/* 技術面體檢表 */
+table.checkup { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+table.checkup th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-2);
+  white-space: nowrap;
+  padding: 8px 10px 8px 0;
+  vertical-align: top;
+  width: 5.5em;
+}
+table.checkup td { padding: 8px 0; vertical-align: top; }
+table.checkup td.sub {
+  color: var(--text-2);
+  font-size: 0.78rem;
+  text-align: right;
+  padding-left: 10px;
+}
+table.checkup tr + tr th, table.checkup tr + tr td { border-top: 1px solid var(--bg); }
+@media (max-width: 480px) {
+  /* 手機上「說明」那欄折到下一行，避免擠成一團 */
+  table.checkup, table.checkup tbody, table.checkup tr { display: block; }
+  table.checkup th, table.checkup td { display: block; width: auto; padding: 0; }
+  table.checkup tr { padding: 10px 0; }
+  table.checkup tr + tr { border-top: 1px solid var(--bg); }
+  table.checkup td.sub { text-align: left; padding-left: 0; margin-top: 2px; }
+}
+
+/* 寬表格在手機上橫向捲動，不要把整頁撐開 */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.table-scroll table { min-width: 560px; }

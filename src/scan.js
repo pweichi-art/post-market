@@ -12,6 +12,8 @@
 import { getPriceSeries } from './cache.js';
 import { calcMA } from './deduction.js';
 import { ApiError } from './api.js';
+import { getMaPeriods } from './prefs.js';
+import { maAlignment, pricePosition, volumeSignal, relativeStrength } from './indicators.js';
 
 // 精選池（權值股 + 各族群熱門股）。代號是固定識別碼，就算某檔已下市，掃描時略過即可。
 export const SCAN_POOL = [
@@ -79,7 +81,14 @@ async function mapLimit(items, limit, fn, onProgress) {
  */
 export async function runScan(extraCodes, period, onProgress) {
   const universe = [...new Set([...SCAN_POOL, ...extraCodes])];
+  const periods = getMaPeriods();
   let rateLimitHits = 0;
+
+  // 大盤只抓一次，給「比大盤強弱」用；抓不到就讓 RS 留空，不影響其他欄位
+  let bench = null;
+  try {
+    bench = (await getPriceSeries('TAIEX')).rows;
+  } catch { /* 沒有大盤資料也能掃 */ }
 
   const rows = await mapLimit(universe, 4, async (code) => {
     const { rows: prices } = await getPriceSeries(code);
@@ -91,6 +100,13 @@ export async function runScan(extraCodes, period, onProgress) {
     const lastClose = closes[closes.length - 1];
     const nextDeduction = r.future[0].deduction;
     const gap = +(lastClose - nextDeduction).toFixed(2);
+
+    // 十字訣的「均・位・量・強」四項（只算數字，判斷留給使用者）
+    const al = maAlignment(closes, periods);
+    const pos = pricePosition(prices.map((x) => x.max), prices.map((x) => x.min), closes, 120);
+    const vol = volumeSignal(closes, prices.map((x) => x.volume), 20);
+    const rs = bench ? relativeStrength(prices, bench, [20]) : { enough: false };
+
     return {
       code,
       close: lastClose,
@@ -100,6 +116,14 @@ export async function runScan(extraCodes, period, onProgress) {
       nextDeduction,
       gap,                       // 今日收盤 − 明日扣抵值
       holdUpDays: r.holdUpDays,
+      alignment: al.enough ? al.alignment : null,
+      spreadPct: al.enough ? al.spreadPct : null,
+      convergedDays: al.enough ? al.convergedDays : null,
+      posPct: pos.enough ? pos.pct : null,
+      posZone: pos.enough ? pos.zone : null,
+      volRatio: vol.enough ? vol.ratio : null,
+      pv: vol.enough ? vol.pv : null,
+      rs20: rs.enough ? rs.items[0].rs : null,
       // 候選：今日還沒上彎，但今日收盤已站上明日扣抵值 → 明天守住價就翻上
       isCandidate: r.trend !== 'up' && gap > 0,
     };

@@ -18,8 +18,9 @@
 | M5 掃描 | ✅ 精選池版 | ~150 檔 + 觀察清單，找明日可能上彎的股票 |
 | M6 卡通風 + PWA | ✅ | 吉祥物、App icon、Service Worker 離線 |
 | 均線週期自訂 | ✅ 09-06 | 設定頁可改，套用到全站 |
+| 技術面體檢（均・位・量・強）| ✅ 09-21 | 出自朱家泓「看圖十字訣」，個股頁卡片＋掃描表欄位 |
 
-測試：`node --test` 共 14 個全過（deduction 4 + chips 3 + prefs 7）。
+測試：`node --test` 共 30 個全過（deduction 4 + chips 3 + prefs 7 + indicators 16）。
 線上：https://pweichi-art.github.io/post-market/ ｜ 原始碼：github.com/pweichi-art/post-market
 
 ### 🔧 待辦（都可選，非阻塞）
@@ -30,6 +31,9 @@
 - [x] **均線週期自訂**（09-06）：設定頁可改，`src/prefs.js` 存 localStorage，套用到
       扣抵值表 / K 線圖 / 觀察清單 / 掃描頁；範圍 2～240、最多 6 條
 - [ ] **真全市場掃描**：需加 Cloudflare Workers 中繼站（唯一允許的後端例外）— 等你決定要不要做
+- [ ] **十字訣第二批**：先做「轉折點偵測（ZigZag）」，可一次解鎖 波（波浪方向）、
+      強（回檔幅度）、支/阻（前波高低點）、切（切線）四項。見 RESEARCH-朱家泓選股指標.md
+- [ ] **十字訣第三批**：離（KD/RSI 背離）、型（型態辨識，易誤判、CP 值低）
 - [ ] **Lighthouse PWA 跑分**：功能已用瀏覽器離線模式手動驗證過，正式跑分有空再排
 
 ### ⚠️ 已知限制（非 bug，用起來要知道）

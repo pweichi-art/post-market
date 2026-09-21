@@ -10,6 +10,7 @@ import { getToken, setToken } from './api.js';
 import { mascotSvg } from './mascot.js';
 import { getMaPeriods, setMaPeriods, DEFAULT_PERIODS, primaryPeriod,
          MA_MIN, MA_MAX, MA_MAX_COUNT } from './prefs.js';
+import { maAlignment, pricePosition, volumeSignal, relativeStrength } from './indicators.js';
 
 const app = document.getElementById('app');
 
@@ -260,6 +261,9 @@ async function stockView(code) {
       <p class="datadate">資料日期：${dataDate}${stale ? '　⚠️ 今日資料尚未更新，顯示上次資料' : ''}</p>
     </div>`));
 
+  const checkupCard = el('<div class="card" id="checkup"></div>');
+  wrap.append(checkupCard);
+
   const watched = (await getWatchlist()).some((w) => w.id === code);
   const watchBtn = el(`<button class="btn ghost">${watched ? '★ 已在觀察清單' : '☆ 加入觀察清單'}</button>`);
   watchBtn.addEventListener('click', async () => {
@@ -304,6 +308,8 @@ async function stockView(code) {
 
   // 圖表在畫面掛上、有寬度後再畫；失敗不影響其他內容
   const chartEl = chartCard.querySelector('#chart');
+  renderCheckup(checkupCard, rows, periods);
+
   renderChart(chartEl, rows, periods).catch((err) => {
     console.error(err);
     chartEl.innerHTML = `<p class="empty">圖表載入失敗（${err.message}），扣抵值分析不受影響</p>`;
@@ -401,6 +407,98 @@ async function renderMargin(node, code) {
     .catch(() => { node.querySelector('#margin-chart').innerHTML = '<p class="empty">圖表載入失敗</p>'; });
 }
 
+// ---------- 技術面體檢（十字訣的 均・量・強・位 四項）----------
+// 只呈現客觀狀態，不做買賣建議、不計分（見 AGENTS.md 硬性規則 1）。
+
+const ALIGN_LABEL = {
+  bull: { text: '多頭排列', cls: 'up', hint: '短天期均線在上' },
+  bear: { text: '空頭排列', cls: 'down', hint: '短天期均線在下' },
+  mixed: { text: '交叉中', cls: 'flat', hint: '均線互相穿越' },
+};
+const ZONE_LABEL = {
+  valley: '低檔（山谷）',
+  waist: '腰部（山腰）',
+  peak: '高檔（山頂）',
+};
+const PV_LABEL = {
+  up_vol_up: '價漲量增',
+  up_vol_down: '價漲量縮',
+  down_vol_down: '價跌量縮',
+  down_vol_up: '價跌量增',
+  flat: '價平',
+};
+
+function checkRow(name, value, note = '') {
+  return `<tr><th>${name}</th><td>${value}</td><td class="sub">${note}</td></tr>`;
+}
+
+async function renderCheckup(card, rows, periods) {
+  const closes = rows.map((r) => r.close);
+  const highs = rows.map((r) => r.max);
+  const lows = rows.map((r) => r.min);
+  const volumes = rows.map((r) => r.volume);
+
+  const al = maAlignment(closes, periods);
+  const pos = pricePosition(highs, lows, closes, 120);
+  const vol = volumeSignal(closes, volumes, 20);
+
+  let alignHtml = '<span class="sub">資料不足</span>';
+  let congestHtml = '<span class="sub">資料不足</span>';
+  if (al.enough) {
+    const L = ALIGN_LABEL[al.alignment];
+    alignHtml = `<span class="pill ${L.cls}">${L.text}</span>`;
+    congestHtml = al.converged
+      ? `糾結 <b>${al.spreadPct}%</b>（已 ${al.convergedDays} 天）`
+      : `發散 <b>${al.spreadPct}%</b>`;
+  }
+
+  const posHtml = pos.enough
+    ? `${ZONE_LABEL[pos.zone]} <b>${pos.pct}%</b>`
+    : '<span class="sub">資料不足</span>';
+  const posNote = pos.enough
+    ? `近 ${pos.bars} 日區間 ${pos.low} ~ ${pos.high}`
+    : '';
+
+  const volHtml = vol.enough
+    ? `<b>${vol.ratio}</b> 倍 ・ ${PV_LABEL[vol.pv]}`
+    : '<span class="sub">資料不足</span>';
+  const volNote = vol.enough ? `前 20 日均量 ${vol.avg.toLocaleString('en-US')}` : '';
+
+  card.innerHTML = `
+    <h2>技術面體檢</h2>
+    <table class="checkup">
+      <tbody>
+        ${checkRow('均線排列', alignHtml, ALIGN_LABEL[al.alignment]?.hint || '')}
+        ${checkRow('均線糾結', congestHtml, '擠得愈密、愈久，突破時力道愈大')}
+        ${checkRow('股價位置', posHtml, posNote)}
+        ${checkRow('量能', volHtml, volNote)}
+        ${checkRow('比大盤', '<span class="sub" id="rs-cell">載入大盤資料…</span>', '個股漲幅減大盤漲幅')}
+      </tbody>
+    </table>
+    <p class="ma-sub sub">出自朱家泓「看圖十字訣」。
+      尚未實作：波（波浪方向）、型（型態）、切（切線）、支（支撐）、阻（壓力）、離（背離）。</p>`;
+
+  // 大盤要另外抓，慢一點沒關係，失敗也不影響上面四項
+  const rsCell = card.querySelector('#rs-cell');
+  try {
+    const { rows: bench } = await getPriceSeries('TAIEX');
+    const rs = relativeStrength(rows, bench, [5, 20]);
+    if (!rs.enough) {
+      rsCell.textContent = '資料不足';
+      return;
+    }
+    rsCell.classList.remove('sub');
+    rsCell.innerHTML = rs.items.map((it) => {
+      const cls = it.rs >= 0 ? 'up' : 'down';
+      const word = it.rs >= 0 ? '強於' : '弱於';
+      return `${it.n} 日 ${word}大盤 <b class="${cls}">${it.rs > 0 ? '+' : ''}${it.rs}%</b>`;
+    }).join(' ・ ');
+  } catch (err) {
+    console.error(err);
+    rsCell.textContent = '大盤資料載入失敗';
+  }
+}
+
 function maCard(r, lastClose, dataDate) {
   if (!r.enoughData) {
     return el(`<div class="card"><h2>MA${r.period}</h2><p class="empty">資料不足，無法計算</p></div>`);
@@ -447,6 +545,22 @@ function maCard(r, lastClose, dataDate) {
 }
 
 // ---------- 掃描頁 ----------
+
+// 掃描表用的精簡標籤
+const ALIGN_SHORT = { bull: '多頭', bear: '空頭', mixed: '交叉' };
+const ZONE_SHORT = { valley: '低', waist: '腰', peak: '高' };
+
+function alignShort(c) {
+  if (!c.alignment) return '—';
+  const cls = c.alignment === 'bull' ? 'up' : c.alignment === 'bear' ? 'down' : 'flat';
+  const tag = c.convergedDays >= 5 ? `<span class="sub"> 糾${c.convergedDays}</span>` : '';
+  return `<span class="${cls}">${ALIGN_SHORT[c.alignment]}</span>${tag}`;
+}
+
+function posShort(c) {
+  if (c.posPct == null) return '—';
+  return `${ZONE_SHORT[c.posZone]} ${Math.round(c.posPct)}%`;
+}
 
 let lastScanPeriod = null;
 
@@ -511,18 +625,35 @@ async function scanView() {
     }
     resultCard.innerHTML = `
       <h2>候選股（MA${lastScanPeriod}，共 ${result.candidates.length} 檔）</h2>
-      <p class="hint">依「今收距明日扣抵值」的餘裕排序，餘裕越大代表明天越容易守住</p>
+      <p class="hint">依「今收距明日扣抵值」的餘裕排序，餘裕越大代表明天越容易守住。
+        右邊四欄是技術面參考（出自十字訣的均・位・量・強），不參與排序。</p>
+      <div class="table-scroll">
       <table class="ded">
-        <thead><tr><th>股票</th><th class="num">收盤</th><th class="num">明日需站上</th><th class="num">餘裕</th></tr></thead>
+        <thead><tr>
+          <th>股票</th>
+          <th class="num">收盤</th>
+          <th class="num">明日<br/>需站上</th>
+          <th class="num">餘裕</th>
+          <th>排列</th>
+          <th class="num">位置</th>
+          <th class="num">量比</th>
+          <th class="num">RS20</th>
+        </tr></thead>
         <tbody>${result.candidates.map((c) => `
           <tr>
             <td><a href="#/stock/${c.code}"><b>${c.code}</b> ${nameOf(c.code)}</a></td>
             <td class="num">${c.close}</td>
             <td class="num">${c.nextDeduction.toFixed(2)}</td>
             <td class="num up">+${c.gap}</td>
+            <td>${alignShort(c)}</td>
+            <td class="num">${posShort(c)}</td>
+            <td class="num">${c.volRatio ?? '—'}</td>
+            <td class="num ${c.rs20 == null ? '' : (c.rs20 >= 0 ? 'up' : 'down')}">${
+              c.rs20 == null ? '—' : (c.rs20 > 0 ? '+' : '') + c.rs20}</td>
           </tr>`).join('')}
         </tbody>
-      </table>`;
+      </table>
+      </div>`;
   });
 }
 

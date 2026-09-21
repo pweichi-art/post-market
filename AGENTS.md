@@ -8,7 +8,7 @@
 
 台股**盤後**個股分析 PWA，核心是「扣抵值 / 均線上彎」分析。單一使用者、純前端、無後端、部署在 GitHub Pages。
 
-## 目前狀態（2026-09-06）
+## 目前狀態（2026-09-21）
 
 - **M0 完成**：`prototype/` Python 原型，扣抵值算法已驗證（見 `prototype/verify.md`）
 - **M1（MVP）完成**：搜尋 → 扣抵值表 + 觀察清單 + IndexedDB 快取
@@ -20,6 +20,15 @@
   同步讀取，2～240、最多 6 條）。`primaryPeriod()` 取中間那條給觀察清單/掃描頁預設用
   （預設 [5,10,20,60] → 20，維持原行為）。圖表色盤在 `chart.js` 的 `MA_PALETTE`（第 i 條
   用第 i 色）。`deduction.js` 保持純函式、不讀偏好——呼叫端傳明確 periods 進去。
+- **技術面體檢（2026-09-21）**：`src/indicators.js`，出自朱家泓《抓住飆股輕鬆賺》的
+  「看圖十字訣」，目前做了 **均（排列/糾結）・位（區間百分位）・量（量比/價量配合）・
+  強（比大盤 RS）** 四項。個股頁一張「技術面體檢」卡；掃描結果表多四欄（排列/位置/量比/RS20）。
+  研究筆記：`RESEARCH-朱家泓選股指標.md`。
+  設計原則：`indicators.js` **只算數字、不輸出中文標籤、不做任何買賣判斷**，
+  標籤與顏色留在 `app.js`（view 層），這樣才好寫單元測試。
+  **刻意不做綜合評分／「符合 N/10 項」**——那會滑向買賣訊號，違反硬性規則 1（使用者 09-21 確認）。
+  大盤資料：`getPriceSeries('TAIEX')` 直接可用（FinMind 的 `TaiwanStockPrice` 支援 `data_id=TAIEX`），
+  不必改快取層；掃描時只抓一次，抓不到就讓 RS 欄留白，不影響其他欄位。
 - 已上線：https://pweichi-art.github.io/post-market/（GitHub Pages，main 根目錄）
 - GitHub：`pweichi-art/post-market`（公開）
 - **M0～M6 全部完成**，目前是依使用者實測回饋做微調的階段，沒有排定的下一個大里程碑
@@ -139,9 +148,11 @@ PostMarket/
 │   ├── scan.js           # M5 掃描：精選池 + mapLimit 併發 + 候選判斷
 │   ├── mascot.js         # 吉祥物 SVG（normal/confused/sad/sleepy）
 │   ├── prefs.js          # 使用者偏好：均線週期（localStorage）
+│   ├── indicators.js     # 十字訣指標：均線排列/糾結、位置、量能、比大盤（純函式）
 │   └── style.css
 ├── test/
-│   ├── deduction.test.js / chips.test.js / prefs.test.js / fixture_2330_20260902.json
+│   ├── deduction.test.js / chips.test.js / prefs.test.js / indicators.test.js
+│   └── fixture_2330_20260902.json
 ```
 
 ---
